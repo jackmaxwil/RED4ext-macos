@@ -368,5 +368,13 @@ cyberpunk.rep/
 cyberpunk.gpr
 scripts/dev/
 scripts/__pycache__/
-release/
+scripts/.tmp/
+scripts/outputs/
+scripts/re_tools/__pycache__/
+scripts/lib/__pycache__/
+scripts/*.cache
 scripts/symbols_*.txt
+scripts/*.log
+.DS_Store
+release/
+.DS_Store

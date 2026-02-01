@@ -105,3 +105,79 @@ scripts/           # Python analysis tools for address discovery
 2. **Frida not loading.** Ensure `FridaGadget.dylib` is signed and in the correct path.
 3. **Plugin crash on load.** Check plugin's address resolver override matches current game version.
 4. **Hooks not triggering.** Verify address offset is correct and hook script is loaded in `red4ext_hooks.js`.
+
+## Cyberpunk 2077 Internals Knowledge
+
+### Binary Architecture
+
+- **Format**: Mach-O ARM64, ~150MB executable
+- **Image Base**: `0x100000000`
+- **Entry Point**: Offset `0x31E18` (via LC_MAIN)
+- **Chained Fixups**: Modern macOS uses `(raw & 0xFFFFFFFF) + base` for pointers
+
+### Function Clustering
+
+Related functions are grouped in memory. Key clusters:
+
+| Subsystem | Range | Size |
+|-----------|-------|------|
+| RTTI | 0x4D3xxx - 0x4D5xxx | ~8KB |
+| TweakDB | 0x2B73xxx - 0x2B7Dxxx | ~40KB |
+| StatsDataSystem | 0x3A93xxx - 0x3A94xxx | ~8KB |
+
+### Address Discovery Techniques
+
+**Most Effective: String References (~85% success)**
+
+1. Find string with `strings Cyberpunk2077 | grep "pattern"`
+2. Locate ADRP+ADD referencing string address
+3. Walk backwards to function prologue (STP X29, X30)
+
+**Member Offset Access**
+
+Search for LDR instructions with known struct offsets:
+```asm
+LDR X?, [X0, #0xD8]   ; StatsDataSystem.statRecords
+LDR X?, [X0, #0xE8]   ; StatsDataSystem.statParams
+```
+
+**Function Proximity**
+
+After finding one function, search nearby (±64KB) for related functions.
+
+### Key Data Structures
+
+```cpp
+// StatsDataSystem layout
+struct StatsDataSystem {
+    // ...
+    DynArray<TweakDBID> statRecords;  // 0xD8
+    DynArray<StatParams> statParams;  // 0xE8
+    SharedMutex statLock;             // 0xFC
+};
+
+// TweakDBID
+struct TweakDBID {
+    uint32_t nameHash;    // FNV1a hash
+    uint8_t  nameLength;
+    uint8_t  tdbOffset[3];
+};
+```
+
+### Valid ARM64 Prologues
+
+```asm
+STP X29, X30, [SP, #-0x??]!   ; Frame setup
+SUB SP, SP, #0x??              ; Stack allocation
+```
+
+### Tools Reference
+
+```bash
+strings Cyberpunk2077 | grep "pattern"  # Find strings
+otool -tV Cyberpunk2077                 # Disassemble
+nm -n Cyberpunk2077 | c++filt          # List symbols
+otool -l Cyberpunk2077                  # Segment info
+```
+
+See `docs/CYBERPUNK_INTERNALS.md` for complete reference.

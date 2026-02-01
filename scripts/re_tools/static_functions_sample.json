@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "analysis_type": "static",
+  "binary_path": "/path/to/Cyberpunk2077",
+  "timestamp": "2026-02-01 00:00:00",
+  "functions": {
+    "0x103452734": {
+      "offset": "0x3452734",
+      "address": "0x103452734",
+      "name": null,
+      "confidence": "low",
+      "discovery_method": "static",
+      "call_count": 0,
+      "callers": [],
+      "callees": [],
+      "signature": null,
+      "prologue_type": "STP_X29_X30"
+    },
+    "0x102B89D18": {
+      "offset": "0x2B89D18",
+      "address": "0x102B89D18",
+      "name": null,
+      "confidence": "low",
+      "discovery_method": "static",
+      "call_count": 0,
+      "callers": [],
+      "callees": [],
+      "signature": null,
+      "prologue_type": "STP_X29_X30"
+    }
+  }
+}
+

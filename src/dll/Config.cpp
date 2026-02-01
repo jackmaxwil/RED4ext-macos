@@ -52,6 +52,11 @@ const Config::PluginsConfig& Config::GetPlugins() const
     return m_plugins;
 }
 
+const Config::HookingConfig& Config::GetHooking() const
+{
+    return m_hooking;
+}
+
 void Config::Load(const std::filesystem::path& aFile)
 {
     try
@@ -108,6 +113,12 @@ void Config::Save(const std::filesystem::path& aFile)
                                    {"max_file_size", m_logging.maxFileSize}}},
 
             {"plugins", value_type{{"enabled", m_plugins.isEnabled}, {"ignored", std::vector<std::string>{}}}},
+            {"hooking",
+             value_type{{"backend",
+                         m_hooking.backend == HookingConfig::Backend::NativeInline
+                             ? "native_inline"
+                             : (m_hooking.backend == HookingConfig::Backend::FridaGum ? "frida_gum"
+                                                                                     : "frida_gadget")}}},
             {"dev", value_type{{"console", m_dev.hasConsole}, {"wait_for_debugger", m_dev.waitForDebugger}}}};
 
         config.comments().push_back(
@@ -133,6 +144,7 @@ void Config::LoadV0(const toml::value& aConfig)
     m_dev.LoadV0(aConfig);
     m_logging.LoadV0(aConfig);
     m_plugins.LoadV0(aConfig);
+    m_hooking.LoadV0(aConfig);
 }
 
 void Config::DevConfig::LoadV0(const toml::value& aConfig)
@@ -199,5 +211,23 @@ void Config::PluginsConfig::LoadV0(const toml::value& aConfig)
 #else
         ignored.emplace(Utils::Widen(plugin));
 #endif
+    }
+}
+
+void Config::HookingConfig::LoadV0(const toml::value& aConfig)
+{
+    const auto backendStr = toml::find_or(aConfig, "hooking", "backend", std::string{});
+
+    if (backendStr == "native_inline")
+    {
+        backend = Backend::NativeInline;
+    }
+    else if (backendStr == "frida_gum")
+    {
+        backend = Backend::FridaGum;
+    }
+    else
+    {
+        backend = Backend::FridaGadget;
     }
 }

@@ -353,7 +353,7 @@ std::shared_ptr<PluginBase> PluginSystem::CreatePlugin(const std::filesystem::pa
     const auto stem = aPath.stem();
 
     using Supports_t = uint32_t (*)();
-    auto supportsFn = reinterpret_cast<Supports_t>(GetProcAddress(aModule.get(), "Supports"));
+    auto supportsFn = reinterpret_cast<Supports_t>(Platform::GetProcAddress(aModule.get(), "Supports"));
     if (!supportsFn)
     {
         // If 'Supports' doesn't exists then the plugin might not be a RED4ext plugin. It might be a dependency.
@@ -361,12 +361,12 @@ std::shared_ptr<PluginBase> PluginSystem::CreatePlugin(const std::filesystem::pa
         // On macOS, just silently skip - symbol not found is expected for non-RED4ext plugins
         return nullptr;
 #else
-        auto err = GetLastError();
+        auto err = Platform::GetLastError();
         if (err != ERROR_PROC_NOT_FOUND)
         {
             auto msg = Utils::FormatLastError();
             Log::warn(L"Could not retrieve 'Supports' function from '{}'. Error code: {}, msg: '{}', path: '{}'",
-                         stem, GetLastError(), msg, aPath);
+                         stem, Platform::GetLastError(), msg, aPath);
         }
 
         return nullptr;

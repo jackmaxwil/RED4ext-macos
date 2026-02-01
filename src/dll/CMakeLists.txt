@@ -38,6 +38,10 @@ elseif(APPLE)
     PUBLIC
       fishhook
   )
+
+  if(RED4EXT_USE_FRIDA_GUM)
+    target_link_libraries(RED4ext.Dll PUBLIC frida-gum)
+  endif()
 endif()
 
 target_link_libraries(RED4ext.Dll
@@ -50,6 +54,10 @@ target_link_libraries(RED4ext.Dll
     tsl::ordered_map
     redscript
 )
+
+if(APPLE AND RED4EXT_USE_FRIDA_GADGET)
+  target_compile_definitions(RED4ext.Dll PRIVATE RED4EXT_USE_FRIDA_GADGET)
+endif()
 
 if(APPLE)
   find_library(CORE_FOUNDATION CoreFoundation)

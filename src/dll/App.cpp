@@ -3,8 +3,15 @@
 #include "DetourTransaction.hpp"
 #include "Image.hpp"
 #include "Platform.hpp"
+#include "Platform/Hooking.hpp"
 #include "Utils.hpp"
 #include "Version.hpp"
+
+#ifdef RED4EXT_PLATFORM_MACOS
+#include <libkern/OSCacheControl.h>
+#include <cerrno>
+#include "Detail/AddressHashes.hpp"
+#endif
 
 #include "Hooks/AssertionFailed.hpp"
 #include "Hooks/CGameApplication.hpp"
@@ -19,6 +26,61 @@
 namespace
 {
 std::unique_ptr<App> g_app;
+
+#ifdef RED4EXT_PLATFORM_MACOS
+bool TestTextPatchFeasibility()
+{
+    constexpr uint32_t kPatchSize = 4;
+    constexpr uint32_t kNop = 0xD503201F; // NOP
+
+    auto* addresses = Addresses::Instance();
+    if (!addresses)
+    {
+        Log::error("[HookingPOC] Addresses not initialized");
+        return false;
+    }
+
+    auto target = reinterpret_cast<void*>(addresses->Resolve(Hashes::CGameApplication_AddState));
+    if (!target)
+    {
+        Log::error("[HookingPOC] Could not resolve CGameApplication_AddState");
+        return false;
+    }
+
+    uint32_t original = 0;
+    std::memcpy(&original, target, sizeof(original));
+
+    Log::info("[HookingPOC] Testing __TEXT patchability at CGameApplication_AddState={}, original={:#x}", target,
+              original);
+
+    uint32_t oldProt = 0;
+    if (!Platform::ProtectMemory(target, kPatchSize, Platform::Memory_ExecuteReadWrite, &oldProt))
+    {
+        Log::error("[HookingPOC] ProtectMemory(RWX) failed: errno={} oldProt={:#x}", errno, oldProt);
+        return false;
+    }
+
+    std::memcpy(target, &kNop, sizeof(kNop));
+    sys_icache_invalidate(target, kPatchSize);
+
+    uint32_t readback = 0;
+    std::memcpy(&readback, target, sizeof(readback));
+
+    // Restore
+    std::memcpy(target, &original, sizeof(original));
+    sys_icache_invalidate(target, kPatchSize);
+    Platform::ProtectMemory(target, kPatchSize, oldProt, nullptr);
+
+    if (readback != kNop)
+    {
+        Log::error("[HookingPOC] Write verification failed: wrote={:#x} readback={:#x}", kNop, readback);
+        return false;
+    }
+
+    Log::info("[HookingPOC] __TEXT patch test succeeded (wrote NOP and restored)");
+    return true;
+}
+#endif
 }
 
 App::App()
@@ -241,16 +303,41 @@ bool App::AttachHooks() const
 {
     Log::trace("Attaching hooks...");
 
+#ifdef RED4EXT_PLATFORM_MACOS
+    DetourSetBackend(static_cast<int32_t>(m_config.GetHooking().backend));
+
+    // Phase 0 gate: if native is requested, first verify we can patch __TEXT.
+    if (m_config.GetHooking().backend == Config::HookingConfig::Backend::NativeInline)
+    {
+        {
+            DetourTransaction transaction;
+            if (!transaction.IsValid())
+            {
+                return false;
+            }
+
+            const bool canPatch = TestTextPatchFeasibility();
+            transaction.Commit();
+
+            if (!canPatch)
+            {
+                Log::warn("[HookingPOC] Native inline patching appears NOT viable; falling back to Frida backend");
+                DetourSetBackend(static_cast<int32_t>(Config::HookingConfig::Backend::FridaGadget));
+            }
+            else
+            {
+                Log::info("[HookingPOC] Native inline patching appears viable; proceeding with native hooks");
+            }
+        }
+    }
+
     DetourTransaction transaction;
     if (!transaction.IsValid())
     {
         return false;
     }
 
-#ifdef RED4EXT_PLATFORM_MACOS
-    // On macOS, we can't patch code on signed binaries due to code signing enforcement.
-    // Try each hook individually and continue even if some fail.
-    // This allows RED4ext to run in a degraded mode where some hooks may not be active.
+    // On macOS, attach hooks individually and continue even if some fail.
     
     int successCount = 0;
     int totalHooks = 8;
@@ -286,6 +373,12 @@ bool App::AttachHooks() const
     transaction.Commit();
     return true;
 #else
+    DetourTransaction transaction;
+    if (!transaction.IsValid())
+    {
+        return false;
+    }
+
     auto success = Hooks::Main::Attach() && Hooks::CGameApplication::Attach() && Hooks::ExecuteProcess::Attach() &&
                    Hooks::InitScripts::Attach() && Hooks::LoadScripts::Attach() && Hooks::ValidateScripts::Attach() &&
                    Hooks::AssertionFailed::Attach() && Hooks::CollectSaveableSystems::Attach() &&

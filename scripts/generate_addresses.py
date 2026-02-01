@@ -1307,7 +1307,7 @@ Examples:
     parser.add_argument(
         '--output', '-o',
         type=Path,
-        default=Path('cyberpunk2077_addresses.json'),
+        default=Path('outputs/cyberpunk2077_addresses.json'),
         help='Output JSON file path (default: cyberpunk2077_addresses.json)'
     )
     parser.add_argument(

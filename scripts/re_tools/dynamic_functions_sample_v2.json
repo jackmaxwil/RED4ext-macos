@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "analysis_type": "dynamic",
+    "timestamp": "2026-02-01T00:00:00"
+  },
+  "functions": {
+    "0x103452734": {
+      "offset": "0x3452734",
+      "address": "0x103452734",
+      "name": null,
+      "confidence": "high",
+      "discovery_method": "dynamic",
+      "call_count": 42,
+      "callers": [
+        "0x103F20830"
+      ],
+      "callees": [
+        "0x102B89D18"
+      ],
+      "signature": null,
+      "prologue_type": null
+    }
+  },
+  "call_graph": {
+    "edges": [
+      {
+        "caller": "0x103452734",
+        "callee": "0x102B89D18",
+        "type": "direct"
+      }
+    ],
+    "edge_count": 1,
+    "node_count": 2
+  }
+}
+

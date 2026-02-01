@@ -13,7 +13,7 @@ MemoryProtection::MemoryProtection(void* aAddress, size_t aSize, uint32_t aProte
     {
         auto msg = Utils::FormatLastError();
         Log::warn(L"Could not change protection at {} ({} byte(s)) to {:#x}. Error code: {}, msg: '{}'", m_address,
-                     m_size, aProtection, GetLastError(), msg);
+                     m_size, aProtection, Platform::GetLastError(), msg);
 
         throw Exception();
     }
@@ -39,7 +39,7 @@ MemoryProtection::~MemoryProtection()
     {
         auto msg = Utils::FormatLastError();
         Log::warn(L"Could not restore protection at {} ({} byte(s)) to {:#x}. Error code: {}, msg: '{}'", m_address,
-                     m_size, m_oldProtection, GetLastError(), msg);
+                     m_size, m_oldProtection, Platform::GetLastError(), msg);
 
         return;
     }

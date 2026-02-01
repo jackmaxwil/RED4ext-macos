@@ -2,6 +2,8 @@
 
 #include "Paths.hpp"
 
+#include <cstdint>
+
 class Config
 {
 public:
@@ -35,6 +37,20 @@ public:
         std::unordered_set<std::wstring> ignored;
     };
 
+    struct HookingConfig
+    {
+        enum class Backend : int32_t
+        {
+            FridaGadget = 0,
+            NativeInline = 1,
+            FridaGum = 2,
+        };
+
+        void LoadV0(const toml::value& aConfig);
+
+        Backend backend = Backend::FridaGadget;
+    };
+
     Config(const Paths& aPaths);
     ~Config() = default;
 
@@ -43,6 +59,7 @@ public:
     const DevConfig& GetDev() const;
     const LoggingConfig& GetLogging() const;
     const PluginsConfig& GetPlugins() const;
+    const HookingConfig& GetHooking() const;
 
 private:
     void Load(const std::filesystem::path& aFile);
@@ -55,4 +72,5 @@ private:
     DevConfig m_dev;
     LoggingConfig m_logging;
     PluginsConfig m_plugins;
+    HookingConfig m_hooking;
 };

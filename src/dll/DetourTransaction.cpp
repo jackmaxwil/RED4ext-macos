@@ -1,6 +1,7 @@
 #include "DetourTransaction.hpp"
 #include "Utils.hpp"
 #include "Platform.hpp"
+#include "Platform/Hooking.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <mach/mach.h>
@@ -12,6 +13,11 @@ DetourTransaction::DetourTransaction(const std::source_location aSource)
     : m_source(aSource)
     , m_state(State::Invalid)
 {
+#ifdef RED4EXT_PLATFORM_MACOS
+    m_threadArray = nullptr;
+    m_threadCount = 0;
+#endif
+
     Log::trace("Trying to start a detour transaction in '{}' ({}:{})", m_source.function_name(),
                   m_source.file_name(), m_source.line());
 
@@ -225,6 +231,14 @@ void DetourTransaction::QueueThreadsForUpdate()
     Log::trace("Queueing threads for detour update...");
 
 #ifdef RED4EXT_PLATFORM_MACOS
+    // Only needed for native inline patching.
+    if (DetourGetBackend() != 1)
+    {
+        m_threadArray = nullptr;
+        m_threadCount = 0;
+        return;
+    }
+
     kern_return_t kr = task_threads(mach_task_self(), &m_threadArray, &m_threadCount);
     if (kr != KERN_SUCCESS)
     {
