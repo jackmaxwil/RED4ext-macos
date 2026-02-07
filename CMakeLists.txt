@@ -96,3 +96,10 @@ if(RED4EXT_TREAT_WARNINGS_AS_ERRORS)
 endif()
 
 add_subdirectory(src)
+
+# Add tests if enabled
+option(RED4EXT_ENABLE_TESTS "Enable test suite" OFF)
+if(RED4EXT_ENABLE_TESTS AND APPLE)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

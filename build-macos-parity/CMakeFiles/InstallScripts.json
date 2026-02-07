@@ -1,0 +1,13 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/jackmazac/Development/RED4ext/build-macos-parity/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos-parity/deps/fmt/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos-parity/deps/simdjson/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos-parity/deps/spdlog/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos-parity/deps/toml11/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos-parity/src/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos-parity/src/dll/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

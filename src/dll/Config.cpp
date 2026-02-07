@@ -114,7 +114,8 @@ void Config::Save(const std::filesystem::path& aFile)
 
             {"plugins", value_type{{"enabled", m_plugins.isEnabled}, {"ignored", std::vector<std::string>{}}}},
             {"hooking",
-             value_type{{"backend",
+             value_type{{"enabled", m_hooking.enabled},
+                        {"backend",
                          m_hooking.backend == HookingConfig::Backend::NativeInline
                              ? "native_inline"
                              : (m_hooking.backend == HookingConfig::Backend::FridaGum ? "frida_gum"
@@ -216,6 +217,8 @@ void Config::PluginsConfig::LoadV0(const toml::value& aConfig)
 
 void Config::HookingConfig::LoadV0(const toml::value& aConfig)
 {
+    enabled = toml::find_or(aConfig, "hooking", "enabled", enabled);
+    
     const auto backendStr = toml::find_or(aConfig, "hooking", "backend", std::string{});
 
     if (backendStr == "native_inline")

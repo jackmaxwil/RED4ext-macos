@@ -1,0 +1,14 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/jackmazac/Development/RED4ext/build-macos/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos/deps/fmt/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos/deps/simdjson/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos/deps/spdlog/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos/deps/toml11/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos/src/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos/src/dll/cmake_install.cmake",
+		"/Users/jackmazac/Development/RED4ext/build-macos/tests/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

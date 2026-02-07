@@ -4,6 +4,10 @@
 
 RED4ext is a script extender/mod loader for Cyberpunk 2077, ported from Windows to macOS ARM64. This port replaces Windows-specific APIs (Detours, PE loading) with macOS equivalents (Frida/fishhook, Mach-O parsing).
 
+## Current Status (Canonical)
+
+See `docs/STATUS.md` for the up-to-date “what works / what’s risky” snapshot and the quick validation checklist.
+
 ## Development Practices
 
 ### Platform Awareness

@@ -15,6 +15,7 @@ public:
     bool Attach(std::shared_ptr<PluginBase> aPlugin, void* aTarget, void* aDetour, void** aOriginal);
     bool Attach(std::shared_ptr<PluginBase> aPlugin, const char* aSymbol, void* aDetour, void** aOriginal);
     bool Detach(std::shared_ptr<PluginBase> aPlugin, void* aTarget);
+    bool DetachAll(std::shared_ptr<PluginBase> aPlugin);
 
 private:
     struct Item

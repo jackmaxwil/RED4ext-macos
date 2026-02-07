@@ -2,6 +2,8 @@
 
 This directory contains essential scripts for building, installing, and maintaining RED4ext on macOS.
 
+For the current port status and “what to validate” checklist, see [../docs/STATUS.md](../docs/STATUS.md).
+
 ## Installation Scripts
 
 | Script | Description |

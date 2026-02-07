@@ -4,6 +4,8 @@
 
 The `generate_symbol_mapping.py` script generates a hash-to-symbol mapping file for RED4ext's macOS address resolution system. This mapping allows RED4ext to resolve function addresses using symbol names instead of relying solely on the address database.
 
+For the current macOS port status and recommended validation steps, see [../docs/STATUS.md](../docs/STATUS.md).
+
 ## Prerequisites
 
 - Python 3.6+

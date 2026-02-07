@@ -2,6 +2,7 @@
 
 This directory contains development notes and planning documents for the RED4ext macOS port. These are archived for reference but are **not required for users**.
 
+**For current status, see: [../STATUS.md](../STATUS.md)**  
 **For installation and usage, see: [../MACOS_PORT.md](../MACOS_PORT.md)**
 
 ---

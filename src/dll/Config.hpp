@@ -48,6 +48,7 @@ public:
 
         void LoadV0(const toml::value& aConfig);
 
+        bool enabled = true;
         Backend backend = Backend::FridaGadget;
     };
 

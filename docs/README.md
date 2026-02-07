@@ -4,6 +4,7 @@
 
 | Document | Description |
 |----------|-------------|
+| [STATUS.md](STATUS.md) | Current port status + verification checklist |
 | [MACOS_PORT.md](MACOS_PORT.md) | **macOS Installation & Usage Guide** |
 | [MACOS_CODE_SIGNING.md](MACOS_CODE_SIGNING.md) | Code signing requirements |
 | [FRIDA_INTEGRATION.md](FRIDA_INTEGRATION.md) | Frida Gadget technical details |

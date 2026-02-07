@@ -11,6 +11,8 @@ A script extender for REDengine 4 ([Cyberpunk 2077](https://www.cyberpunk.net)) 
 
 This is the initial macOS release. **Not all features have full parity with Windows.**
 
+For a living “what works / what’s risky” snapshot, see [docs/STATUS.md](docs/STATUS.md).
+
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Library injection | ✅ Working | DYLD_INSERT_LIBRARIES |
@@ -225,6 +227,7 @@ python3 scripts/generate_addresses.py \
 
 | Document | Description |
 |----------|-------------|
+| [docs/STATUS.md](docs/STATUS.md) | Current port status + verification checklist |
 | [docs/MACOS_PORT.md](docs/MACOS_PORT.md) | Port technical details |
 | [docs/FRIDA_INTEGRATION.md](docs/FRIDA_INTEGRATION.md) | Frida hooking implementation |
 | [docs/MACOS_CODE_SIGNING.md](docs/MACOS_CODE_SIGNING.md) | Code signing requirements |
