@@ -177,7 +177,7 @@ void PluginSystem::Shutdown()
     Log::info("{} plugin(s) unloaded", size);
 }
 
-std::shared_ptr<PluginBase> PluginSystem::GetPlugin(HMODULE aModule) const
+std::shared_ptr<PluginBase> PluginSystem::GetPlugin(Platform::Handle aModule) const
 {
     auto iter = m_plugins.find(aModule);
     if (iter != m_plugins.end())
@@ -216,8 +216,8 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
 #ifdef RED4EXT_PLATFORM_MACOS
     if (aPath.extension() == L".app" || aPath.filename() == L"Cyberpunk2077")
     {
-        // Main executable - use RTLD_DEFAULT
-        handle.reset(RTLD_DEFAULT);
+        // Main executable - use a real dlopen handle, not RTLD_DEFAULT.
+        handle.reset(Platform::GetModuleHandle(nullptr));
     }
     else
     {

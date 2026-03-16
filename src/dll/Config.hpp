@@ -17,6 +17,7 @@ public:
 
         bool hasConsole = false;
         bool waitForDebugger = false;
+        bool strictVersionCheck = false;
     };
 
     struct LoggingConfig

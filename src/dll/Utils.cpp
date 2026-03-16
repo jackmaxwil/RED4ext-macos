@@ -12,8 +12,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #ifdef RED4EXT_PLATFORM_MACOS
-#include <codecvt>
-#include <locale>
+#include <cstdint>
 #endif
 
 std::shared_ptr<spdlog::logger> Utils::CreateLogger(const std::wstring_view aLogName, const std::wstring_view aFilename,
@@ -204,14 +203,35 @@ std::string Utils::Narrow(const std::wstring_view aText)
     std::string result;
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    try
+    for (wchar_t wc : aText)
     {
-        std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-        result = converter.to_bytes(aText.data(), aText.data() + aText.size());
-    }
-    catch (...)
-    {
-        result = fmt::format("Failed to convert wide to narrow string");
+        const std::uint32_t cp = static_cast<std::uint32_t>(wc);
+        if (cp <= 0x7F)
+        {
+            result.push_back(static_cast<char>(cp));
+        }
+        else if (cp <= 0x7FF)
+        {
+            result.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
+            result.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+        else if (cp <= 0xFFFF)
+        {
+            result.push_back(static_cast<char>(0xE0 | ((cp >> 12) & 0x0F)));
+            result.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            result.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+        else if (cp <= 0x10FFFF)
+        {
+            result.push_back(static_cast<char>(0xF0 | ((cp >> 18) & 0x07)));
+            result.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+            result.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            result.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+        else
+        {
+            result.push_back('?');
+        }
     }
 #else
     auto len =
@@ -243,14 +263,42 @@ std::wstring Utils::Widen(const std::string_view aText)
     std::wstring result;
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    try
+    const unsigned char* ptr = reinterpret_cast<const unsigned char*>(aText.data());
+    const unsigned char* end = ptr + aText.size();
+
+    while (ptr < end)
     {
-        std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-        result = converter.from_bytes(aText.data(), aText.data() + aText.size());
-    }
-    catch (...)
-    {
-        result = fmt::format(L"Failed to convert narrow to wide string");
+        std::uint32_t cp = 0;
+        const unsigned char c0 = *ptr++;
+
+        if ((c0 & 0x80) == 0)
+        {
+            cp = c0;
+        }
+        else if ((c0 & 0xE0) == 0xC0 && ptr < end)
+        {
+            cp = static_cast<std::uint32_t>(c0 & 0x1F) << 6;
+            cp |= static_cast<std::uint32_t>(*ptr++ & 0x3F);
+        }
+        else if ((c0 & 0xF0) == 0xE0 && (end - ptr) >= 2)
+        {
+            cp = static_cast<std::uint32_t>(c0 & 0x0F) << 12;
+            cp |= static_cast<std::uint32_t>(*ptr++ & 0x3F) << 6;
+            cp |= static_cast<std::uint32_t>(*ptr++ & 0x3F);
+        }
+        else if ((c0 & 0xF8) == 0xF0 && (end - ptr) >= 3)
+        {
+            cp = static_cast<std::uint32_t>(c0 & 0x07) << 18;
+            cp |= static_cast<std::uint32_t>(*ptr++ & 0x3F) << 12;
+            cp |= static_cast<std::uint32_t>(*ptr++ & 0x3F) << 6;
+            cp |= static_cast<std::uint32_t>(*ptr++ & 0x3F);
+        }
+        else
+        {
+            cp = static_cast<std::uint32_t>('?');
+        }
+
+        result.push_back(static_cast<wchar_t>(cp));
     }
 #else
     auto len = MultiByteToWideChar(CP_UTF8, 0, aText.data(), static_cast<int32_t>(aText.size()), nullptr, 0);

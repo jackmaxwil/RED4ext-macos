@@ -17,7 +17,7 @@ const std::filesystem::path& PluginBase::GetPath() const
     return m_path;
 }
 
-HMODULE PluginBase::GetModule() const
+Platform::Handle PluginBase::GetModule() const
 {
     return m_module.get();
 }

@@ -119,7 +119,10 @@ void Config::Save(const std::filesystem::path& aFile)
                              ? "native_inline"
                              : (m_hooking.backend == HookingConfig::Backend::FridaGum ? "frida_gum"
                                                                                      : "frida_gadget")}}},
-            {"dev", value_type{{"console", m_dev.hasConsole}, {"wait_for_debugger", m_dev.waitForDebugger}}}};
+            {"dev",
+             value_type{{"console", m_dev.hasConsole},
+                        {"wait_for_debugger", m_dev.waitForDebugger},
+                        {"strict_version_check", m_dev.strictVersionCheck}}}};
 
         config.comments().push_back(
             " See https://docs.red4ext.com/getting-started/configuration for more options or information.");
@@ -151,6 +154,7 @@ void Config::DevConfig::LoadV0(const toml::value& aConfig)
 {
     hasConsole = toml::find_or(aConfig, "dev", "console", hasConsole);
     waitForDebugger = toml::find_or(aConfig, "dev", "wait_for_debugger", waitForDebugger);
+    strictVersionCheck = toml::find_or(aConfig, "dev", "strict_version_check", strictVersionCheck);
 }
 
 void Config::LoggingConfig::LoadV0(const toml::value& aConfig)

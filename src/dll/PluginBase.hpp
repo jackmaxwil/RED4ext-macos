@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Platform.hpp"
+
 class PluginBase
 {
 public:
@@ -17,7 +19,7 @@ public:
     virtual const RED4ext::SemVer& GetSdkVersion() const = 0;
 
     const std::filesystem::path& GetPath() const;
-    HMODULE GetModule() const;
+    Platform::Handle GetModule() const;
 
     bool Query();
     bool Main(RED4ext::EMainReason aReason);

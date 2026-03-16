@@ -23,6 +23,8 @@
 #include "Hooks/ValidateScripts.hpp"
 #include "Hooks/gsmState_SessionActive.hpp"
 
+#include <cstdio>
+
 namespace
 {
 std::unique_ptr<App> g_app;
@@ -78,6 +80,26 @@ bool TestTextPatchFeasibility()
     }
 
     Log::info("[HookingPOC] __TEXT patch test succeeded (wrote NOP and restored)");
+    return true;
+}
+#endif
+
+#ifdef RED4EXT_PLATFORM_MACOS
+bool ParseSemVer(const std::string& aValue, RED4ext::SemVer& aOut)
+{
+    unsigned major = 0;
+    unsigned minor = 0;
+    unsigned patch = 0;
+
+    const int count = std::sscanf(aValue.c_str(), "%u.%u.%u", &major, &minor, &patch);
+    if (count < 1)
+    {
+        return false;
+    }
+
+    aOut.major = static_cast<uint16_t>(major);
+    aOut.minor = static_cast<uint16_t>(minor);
+    aOut.patch = static_cast<uint16_t>(patch);
     return true;
 }
 #endif
@@ -162,10 +184,8 @@ App::App()
     Log::info("File version: {}.{}.{}.{}", fileVer.major, fileVer.minor, fileVer.build, fileVer.revision);
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    // On macOS, version scheme differs from Windows (CFBundleShortVersionString vs PE version)
-    // Skip version check for now - macOS port is tested with v2.3.1
-    Log::info("macOS port - version check bypassed (game version: {}.{}.{}.{})", 
-              fileVer.major, fileVer.minor, fileVer.build, fileVer.revision);
+    Log::info("macOS runtime version detected: {}.{}.{}.{}", fileVer.major, fileVer.minor, fileVer.build,
+              fileVer.revision);
 #else
     auto minimumVersion = RED4EXT_RUNTIME_2_31;
     if (fileVer < RED4EXT_RUNTIME_2_31)
@@ -176,6 +196,36 @@ App::App()
 #endif
 
     Addresses::Construct(m_paths);
+
+#ifdef RED4EXT_PLATFORM_MACOS
+    if (auto* addresses = Addresses::Instance())
+    {
+        const auto& dbVersionStr = addresses->GetDatabaseGameVersion();
+        if (!dbVersionStr.empty())
+        {
+            RED4ext::SemVer dbVersion{};
+            if (ParseSemVer(dbVersionStr, dbVersion))
+            {
+                const auto strictVersionCheck = m_config.GetDev().strictVersionCheck;
+                if (dbVersion.major != productVer.major || dbVersion.minor != productVer.minor ||
+                    dbVersion.patch != productVer.patch)
+                {
+                    Log::warn("Address DB version ({}) does not match runtime version ({}.{}.{})", dbVersionStr,
+                              productVer.major, productVer.minor, productVer.patch);
+                    if (strictVersionCheck)
+                    {
+                        Log::error("strict_version_check=true and version mismatch detected; aborting initialization");
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                Log::warn("Could not parse address DB game_version '{}'", dbVersionStr);
+            }
+        }
+    }
+#endif
 
     if (AttachHooks())
     {
@@ -208,6 +258,7 @@ void App::Destruct()
         auto success = Hooks::CGameApplication::Detach() && Hooks::ExecuteProcess::Detach() &&
                        Hooks::InitScripts::Detach() && Hooks::LoadScripts::Detach() &&
                        Hooks::ValidateScripts::Detach() && Hooks::AssertionFailed::Detach() &&
+                       Hooks::CollectSaveableSystems::Detach() &&
                        Hooks::gsmState_SessionActive::Detach();
 #else
         auto success = Hooks::CGameApplication::Detach() && Hooks::Main::Detach() && Hooks::ExecuteProcess::Detach() &&

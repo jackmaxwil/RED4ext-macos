@@ -18,12 +18,12 @@ public:
     void Startup() final;
     void Shutdown() final;
 
-    std::shared_ptr<PluginBase> GetPlugin(HMODULE aModule) const;
+    std::shared_ptr<PluginBase> GetPlugin(Platform::Handle aModule) const;
     const std::vector<PluginName>& GetIncompatiblePlugins() const;
     std::vector<PluginName> GetActivePlugins() const;
 
 private:
-    using Map_t = std::unordered_map<HMODULE, std::shared_ptr<PluginBase>>;
+    using Map_t = std::unordered_map<Platform::Handle, std::shared_ptr<PluginBase>>;
     using MapIter_t = Map_t::iterator;
 
     struct PluginLoadInfo

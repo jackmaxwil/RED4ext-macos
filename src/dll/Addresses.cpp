@@ -20,12 +20,74 @@
 namespace
 {
 std::unique_ptr<Addresses> g_addresses;
+
+#ifdef RED4EXT_PLATFORM_MACOS
+uint32_t GetMainExecutableImageIndex()
+{
+    // When injected via DYLD_INSERT_LIBRARIES, dyld image ordering can vary.
+    // Never assume image 0 is the game executable; instead, find the image whose
+    // filename matches the current process executable.
+    static uint32_t s_index = UINT32_MAX;
+    if (s_index != UINT32_MAX)
+    {
+        return s_index;
+    }
+
+    const auto exePath = Platform::GetModuleFileName(nullptr);
+    const auto exeFile = exePath.filename();
+
+    const uint32_t count = _dyld_image_count();
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const char* name = _dyld_get_image_name(i);
+        if (!name || !*name)
+        {
+            continue;
+        }
+
+        if (std::filesystem::path(name).filename() == exeFile)
+        {
+            s_index = i;
+            break;
+        }
+    }
+
+    if (s_index == UINT32_MAX)
+    {
+        s_index = 0;
+    }
+
+    return s_index;
+}
+
+const mach_header_64* GetMainExecutableHeader()
+{
+    const auto idx = GetMainExecutableImageIndex();
+    return reinterpret_cast<const mach_header_64*>(_dyld_get_image_header(idx));
+}
+
+intptr_t GetMainExecutableSlide()
+{
+    const auto idx = GetMainExecutableImageIndex();
+    return _dyld_get_image_vmaddr_slide(idx);
+}
+#endif
 }
 
 Addresses::Addresses(const Paths& aPaths)
 {
     constexpr auto filename = L"cyberpunk2077_addresses.json";
     auto filePath = aPaths.GetX64Dir() / filename;
+
+#ifdef RED4EXT_PLATFORM_MACOS
+    // Prefer loader-merged DB when present so loader-only hashes resolve without
+    // polluting the SDK DB used by plugins.
+    const auto loaderDb = aPaths.GetX64Dir() / L"cyberpunk2077_addresses.loader.json";
+    if (exists(loaderDb))
+    {
+        filePath = loaderDb;
+    }
+#endif
 
     LoadSections();
 #ifdef RED4EXT_PLATFORM_MACOS
@@ -87,6 +149,11 @@ std::uintptr_t Addresses::Resolve(std::uint32_t aHash) const
     const auto address = it->second;
     return address;
 #endif
+}
+
+const std::string& Addresses::GetDatabaseGameVersion() const
+{
+    return m_dbGameVersion;
 }
 
 void Addresses::LoadSymbols(const std::filesystem::path& aSymbolsPath)
@@ -190,6 +257,21 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
     simdjson::padded_string json = simdjson::padded_string::load(aPath.string());
     simdjson::ondemand::document document = parser.iterate(json);
 
+    // Optional metadata used for runtime compatibility checks.
+    {
+        std::string_view gameVersion{};
+        auto versionErr = document["game_version"].get_string().get(gameVersion);
+        if (!versionErr)
+        {
+            m_dbGameVersion.assign(gameVersion.data(), gameVersion.size());
+            Log::info("Address DB game_version: {}", m_dbGameVersion);
+        }
+        else
+        {
+            m_dbGameVersion.clear();
+        }
+    }
+
     simdjson::ondemand::array root;
     auto error = document["Addresses"].get_array().get(root);
     if (error)
@@ -205,8 +287,13 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
     }
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    auto base = reinterpret_cast<std::uintptr_t>(_dyld_get_image_header(0));
-    auto slide = _dyld_get_image_vmaddr_slide(0);
+    const auto imgIdx = GetMainExecutableImageIndex();
+    Log::info("[Addresses] macOS dyld image[{}]='{}' base=0x{:x} slide=0x{:x}",
+              imgIdx, _dyld_get_image_name(imgIdx),
+              reinterpret_cast<std::uintptr_t>(_dyld_get_image_header(imgIdx)),
+              static_cast<std::uintptr_t>(_dyld_get_image_vmaddr_slide(imgIdx)));
+    Log::info("[Addresses] Segment bases: TEXT=0x{:x} DATA_CONST=0x{:x} DATA=0x{:x}",
+              m_codeOffset, m_rdataOffset, m_dataOffset);
 #else
     auto base = reinterpret_cast<std::uintptr_t>(Platform::GetModuleHandle(nullptr));
 #endif
@@ -257,29 +344,36 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
             stream >> std::hex >> segment >> separator >> offset;
 
 #ifdef RED4EXT_PLATFORM_MACOS
-            // On macOS, offsets in the JSON are relative to segment start
-            // Final address = base + slide + segment offset + relative offset
-            auto base = reinterpret_cast<std::uintptr_t>(_dyld_get_image_header(0));
-            auto slide = _dyld_get_image_vmaddr_slide(0);
-            std::uintptr_t segmentOffset = 0;
+            if (offset == 0)
+            {
+                // Explicitly allow zero offsets (GPU-only or unsupported on macOS)
+                m_addresses.emplace(static_cast<std::uint32_t>(hash), 0);
+                continue;
+            }
+
+            // On macOS, offsets in the JSON are relative to segment start.
+            // m_codeOffset / m_rdataOffset / m_dataOffset store the runtime
+            // segment base (vmaddr + ASLR slide), so final address is simply
+            // segmentBase + offset.
+            std::uintptr_t segmentBase = 0;
             
             switch (segment)
             {
             case 1: // __TEXT segment (code)
-                segmentOffset = m_codeOffset;
+                segmentBase = m_codeOffset;
                 break;
             case 2: // __DATA_CONST segment (read-only data)
-                segmentOffset = m_rdataOffset;
+                segmentBase = m_rdataOffset;
                 break;
             case 3: // __DATA segment (read-write data)
-                segmentOffset = m_dataOffset;
+                segmentBase = m_dataOffset;
                 break;
             default:
                 Log::warn("Unknown segment {} for hash 0x{:08X}", segment, hash);
                 break;
             }
             
-            auto address = base + slide + segmentOffset + offset;
+            auto address = segmentBase + offset;
 #else
             switch (segment)
             {
@@ -307,13 +401,15 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
 void Addresses::LoadSections()
 {
 #ifdef RED4EXT_PLATFORM_MACOS
-    const struct mach_header_64* header = reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(0));
+    const struct mach_header_64* header = GetMainExecutableHeader();
     if (header == nullptr)
     {
         Log::error("Error: Could not get Mach-O header.");
         exit(1);
         return;
     }
+
+    const auto slide = GetMainExecutableSlide();
 
     uintptr_t cmdPtr = reinterpret_cast<uintptr_t>(header + 1);
     for (uint32_t i = 0; i < header->ncmds; i++)
@@ -322,17 +418,20 @@ void Addresses::LoadSections()
         if (cmd->cmd == LC_SEGMENT_64)
         {
             const struct segment_command_64* seg = reinterpret_cast<const struct segment_command_64*>(cmdPtr);
+            // Store runtime segment base (vmaddr + ASLR slide)
+            const auto runtimeBase = static_cast<std::uintptr_t>(
+                static_cast<std::intptr_t>(seg->vmaddr) + slide);
             if (strcmp(seg->segname, "__TEXT") == 0)
             {
-                m_codeOffset = static_cast<uint32_t>(seg->vmaddr);
+                m_codeOffset = runtimeBase;
             }
             else if (strcmp(seg->segname, "__DATA") == 0)
             {
-                m_dataOffset = static_cast<uint32_t>(seg->vmaddr);
+                m_dataOffset = runtimeBase;
             }
             else if (strcmp(seg->segname, "__DATA_CONST") == 0)
             {
-                m_rdataOffset = static_cast<uint32_t>(seg->vmaddr);
+                m_rdataOffset = runtimeBase;
             }
         }
         cmdPtr += cmd->cmdsize;
