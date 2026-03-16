@@ -217,6 +217,10 @@ install_files() {
         cp -f "$SCRIPT_DIR/cyberpunk2077_addresses.json" "$bin_dir/"
         log_success "Installed address database"
     fi
+    if [[ -f "$SCRIPT_DIR/cyberpunk2077_addresses.loader.json" ]]; then
+        cp -f "$SCRIPT_DIR/cyberpunk2077_addresses.loader.json" "$bin_dir/"
+        log_success "Installed loader address database"
+    fi
     
     # Generate symbol mappings if needed
     local symbols_file="$bin_dir/cyberpunk2077_symbols.json"

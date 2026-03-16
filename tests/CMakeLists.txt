@@ -89,6 +89,29 @@ if(APPLE)
 
     add_test(NAME PerformanceBenchmarks COMMAND PerformanceBenchmarks)
 
+    # Address validation plugin (runtime, loaded by RED4ext)
+    add_library(AddressValidator SHARED
+        validation_plugin/Main.cpp
+        validation_plugin/AddressHashList.hpp
+    )
+
+    target_include_directories(AddressValidator PRIVATE
+        ${CMAKE_SOURCE_DIR}/deps/red4ext.sdk/include
+        ${CMAKE_SOURCE_DIR}/deps/spdlog/include
+        ${CMAKE_SOURCE_DIR}/deps/fmt/include
+    )
+
+    target_link_libraries(AddressValidator
+        spdlog::spdlog
+        fmt::fmt
+    )
+
+    set_target_properties(AddressValidator PROPERTIES
+        OUTPUT_NAME "address_validator"
+        PREFIX ""
+        SUFFIX ".dylib"
+    )
+
     # Enable testing
     enable_testing()
 endif()

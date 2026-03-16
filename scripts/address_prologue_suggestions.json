@@ -1,0 +1,241 @@
+{
+  "binary": "/Users/jackmazac/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077",
+  "db": "scripts/cyberpunk2077_addresses.json",
+  "scan_bytes": 4096,
+  "results": [
+    {
+      "name": "CBaseFunction_Handlers",
+      "hash": "0x5A7D28A9",
+      "segment": 1,
+      "offset": "0x6E50000",
+      "status": "read_failed"
+    },
+    {
+      "name": "CClass_sub_80",
+      "hash": "0x11D11B0C",
+      "segment": 1,
+      "offset": "0x6C3E9D3",
+      "status": "no_prologue_found",
+      "instr": "0x71657266"
+    },
+    {
+      "name": "CClass_sub_88",
+      "hash": "0x4BDF1BB2",
+      "segment": 1,
+      "offset": "0x6C3E9DD",
+      "status": "no_prologue_found",
+      "instr": "0x70617267"
+    },
+    {
+      "name": "CClass_sub_90",
+      "hash": "0xA26D374E",
+      "segment": 1,
+      "offset": "0x6C3E9E6",
+      "status": "no_prologue_found",
+      "instr": "0x676E656C"
+    },
+    {
+      "name": "CClass_sub_98",
+      "hash": "0x48C020CA",
+      "segment": 1,
+      "offset": "0x6C3E9ED",
+      "status": "no_prologue_found",
+      "instr": "0x6867696C"
+    },
+    {
+      "name": "CClass_sub_A0",
+      "hash": "0x15F21D6F",
+      "segment": 1,
+      "offset": "0x6C3E9F3",
+      "status": "no_prologue_found",
+      "instr": "0x7373616D"
+    },
+    {
+      "name": "CClass_sub_B0",
+      "hash": "0xA0911974",
+      "segment": 1,
+      "offset": "0x6C3E9F8",
+      "status": "no_prologue_found",
+      "instr": "0x65776F70"
+    },
+    {
+      "name": "CClass_sub_C0",
+      "hash": "0xD2081231",
+      "segment": 1,
+      "offset": "0x6C3EA07",
+      "status": "no_prologue_found",
+      "instr": "0x65657073"
+    },
+    {
+      "name": "CClass_GetMaxAlignment",
+      "hash": "0xD14E1230",
+      "segment": 1,
+      "offset": "0x6C3EA0D",
+      "status": "no_prologue_found",
+      "instr": "0x706D6574"
+    },
+    {
+      "name": "CClass_sub_D0",
+      "hash": "0x37750EBF",
+      "segment": 1,
+      "offset": "0x6C37108",
+      "status": "no_prologue_found",
+      "instr": "0x71726F74"
+    },
+    {
+      "name": "CClass_InitializeProperties",
+      "hash": "0x868C1551",
+      "segment": 1,
+      "offset": "0x6C3EA57",
+      "status": "no_prologue_found",
+      "instr": "0x72676564"
+    },
+    {
+      "name": "CClass_AssignDefaultValuesToProperties",
+      "hash": "0x97DF1590",
+      "segment": 1,
+      "offset": "0x6C3EA5E",
+      "status": "no_prologue_found",
+      "instr": "0x69646172"
+    },
+    {
+      "name": "CRTTIScriptReferenceType_ctor",
+      "hash": "0xCB8A115C",
+      "segment": 1,
+      "offset": "0x2200000",
+      "status": "suggest",
+      "suggested_offset": "0x21FF104",
+      "delta": -3836,
+      "instr": "0x9116A3E1",
+      "suggested_instr": "0xD13EC3FF"
+    },
+    {
+      "name": "CRTTIScriptReferenceType_Set",
+      "hash": "0x22EE172F",
+      "segment": 1,
+      "offset": "0x2200100",
+      "status": "suggest",
+      "suggested_offset": "0x21FF104",
+      "delta": -4092,
+      "instr": "0xF9400D08",
+      "suggested_instr": "0xD13EC3FF"
+    },
+    {
+      "name": "IRenderProxy_sub_00",
+      "hash": "0x12090DDE",
+      "segment": 1,
+      "offset": "0x1000100",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -1324,
+      "instr": "0xB802D028",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_08",
+      "hash": "0xD0EF1207",
+      "segment": 1,
+      "offset": "0x1000180",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -1452,
+      "instr": "0xFD473162",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_18",
+      "hash": "0xA44E15ED",
+      "segment": 1,
+      "offset": "0x1000200",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -1580,
+      "instr": "0x3DC3F131",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_58",
+      "hash": "0x92C110C0",
+      "segment": 1,
+      "offset": "0x1000300",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -1836,
+      "instr": "0xB9400389",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_60",
+      "hash": "0xD01C16CA",
+      "segment": 1,
+      "offset": "0x1000380",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -1964,
+      "instr": "0x910FC268",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_78",
+      "hash": "0x978B1554",
+      "segment": 1,
+      "offset": "0x1000400",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -2092,
+      "instr": "0xAA1703E0",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_80",
+      "hash": "0x1E6A2CAC",
+      "segment": 1,
+      "offset": "0x1000480",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -2220,
+      "instr": "0xF9401BE1",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_88",
+      "hash": "0xDE061A98",
+      "segment": 1,
+      "offset": "0x1000500",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -2348,
+      "instr": "0xF9400BE1",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_90",
+      "hash": "0x70EA1CDB",
+      "segment": 1,
+      "offset": "0x1000580",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -2476,
+      "instr": "0xF94013E1",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "IRenderProxy_sub_98",
+      "hash": "0xD19F118C",
+      "segment": 1,
+      "offset": "0x1000600",
+      "status": "suggest",
+      "suggested_offset": "0xFFFBD4",
+      "delta": -2604,
+      "instr": "0x94E8F592",
+      "suggested_instr": "0xA90D7BFD"
+    },
+    {
+      "name": "ISerializable_Counter",
+      "hash": "0x9CCF1543",
+      "segment": 1,
+      "offset": "0x7500000",
+      "status": "read_failed"
+    }
+  ]
+}
