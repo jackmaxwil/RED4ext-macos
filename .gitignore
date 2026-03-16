@@ -363,6 +363,7 @@ FodyWeavers.xsd
 
 ### Custom ###
 build
+build-macos/
 src/dll/Version.hpp
 cyberpunk.rep/
 cyberpunk.gpr
@@ -378,3 +379,4 @@ scripts/*.log
 .DS_Store
 release/
 .DS_Store
+.cursor/

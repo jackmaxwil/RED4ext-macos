@@ -1,7 +1,5 @@
 #include "Addresses.hpp"
 #include "Platform.hpp"
-#include "Platform/CrashHandler.hpp"
-#include "Platform/StructuredLogging.hpp"
 
 #include <ios>
 #include <string>
@@ -22,59 +20,6 @@
 namespace
 {
 std::unique_ptr<Addresses> g_addresses;
-
-#ifdef RED4EXT_PLATFORM_MACOS
-uint32_t GetMainExecutableImageIndex()
-{
-    // When injected via DYLD_INSERT_LIBRARIES, dyld image ordering can vary.
-    // Never assume image 0 is the game executable; instead, find the image whose
-    // filename matches the current process executable.
-    static uint32_t s_index = UINT32_MAX;
-    if (s_index != UINT32_MAX)
-    {
-        return s_index;
-    }
-
-    const auto exePath = Platform::GetModuleFileName(nullptr);
-    const auto exeFile = exePath.filename();
-
-    const uint32_t count = _dyld_image_count();
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        const char* name = _dyld_get_image_name(i);
-        if (!name || !*name)
-        {
-            continue;
-        }
-
-        if (std::filesystem::path(name).filename() == exeFile)
-        {
-            s_index = i;
-            break;
-        }
-    }
-
-    if (s_index == UINT32_MAX)
-    {
-        // Fallback: preserve existing behavior.
-        s_index = 0;
-    }
-
-    return s_index;
-}
-
-const mach_header_64* GetMainExecutableHeader()
-{
-    const auto idx = GetMainExecutableImageIndex();
-    return reinterpret_cast<const mach_header_64*>(_dyld_get_image_header(idx));
-}
-
-intptr_t GetMainExecutableSlide()
-{
-    const auto idx = GetMainExecutableImageIndex();
-    return _dyld_get_image_vmaddr_slide(idx);
-}
-#endif
 }
 
 Addresses::Addresses(const Paths& aPaths)
@@ -104,63 +49,33 @@ Addresses* Addresses::Instance()
 std::uintptr_t Addresses::Resolve(std::uint32_t aHash) const
 {
 #ifdef RED4EXT_PLATFORM_MACOS
-    // Prefer the address database when present (it covers non-exported functions and
-    // avoids dlsym resolving to branch islands/trampolines).
-    const auto it = m_addresses.find(aHash);
-    if (it != m_addresses.end() && it->second != 0)
-    {
-        void* resolvedAddr = reinterpret_cast<void*>(it->second);
-        
-        // Validate resolved address
-        if (!Platform::CrashHandler::IsValidAddress(resolvedAddr, 16))
-        {
-            Platform::CrashHandler::MemoryRegionInfo regionInfo;
-            bool hasRegion = Platform::CrashHandler::GetMemoryRegionInfo(resolvedAddr, regionInfo);
-            
-            Log::warn("[Addresses] Resolved hash 0x{:08X} to INVALID address {} (not in mapped region)", 
-                      aHash, fmt::ptr(resolvedAddr));
-            if (hasRegion)
-            {
-                Log::warn("[Addresses] Nearest region: {} size={} prot={:#x} name={}", 
-                          fmt::ptr(regionInfo.start), regionInfo.size, regionInfo.protection, regionInfo.name);
-            }
-            // Still return it - let the hook system validate
-        }
-        
-        return it->second;
-    }
-
     // First, try to resolve via symbol name (if we have a mapping)
     const auto symIt = m_hashToSymbol.find(aHash);
     if (symIt != m_hashToSymbol.end())
     {
-        // Resolve symbols against the main executable image (avoid RTLD_DEFAULT collisions
-        // with plugin exports when plugins are loaded with RTLD_GLOBAL).
-        static Platform::Handle s_mainHandle = Platform::GetModuleHandle(nullptr);
-        void* addr = Platform::GetProcAddress(s_mainHandle, symIt->second.c_str());
+        void* addr = dlsym(RTLD_DEFAULT, symIt->second.c_str());
         if (addr)
         {
             Log::trace("Resolved hash 0x{:08X} via symbol '{}' to address {}", 
                          aHash, symIt->second, fmt::ptr(addr));
-            Platform::StructuredLogging::LogStructured(spdlog::level::trace, "[Addresses]", 
-                fmt::format("Resolved hash 0x{:08X} via symbol '{}' to {}", aHash, symIt->second, fmt::ptr(addr)));
-            Platform::StructuredLogging::PopContext();
             return reinterpret_cast<std::uintptr_t>(addr);
         }
         else
         {
             Log::warn("Symbol '{}' (hash 0x{:08X}) not found via dlsym", 
                         symIt->second, aHash);
-            Platform::StructuredLogging::LogStructured(spdlog::level::warn, "[Addresses]", 
-                fmt::format("Symbol '{}' (hash 0x{:08X}) not found", symIt->second, aHash));
         }
     }
     
-    // No database entry and symbol lookup failed.
+    // Fall back to address database (for non-exported symbols or offsets)
+    const auto it = m_addresses.find(aHash);
+    if (it != m_addresses.end())
+    {
+        // Addresses in the database are already resolved (base + slide + offset)
+        return it->second;
+    }
+    
     Log::warn("Could not resolve hash 0x{:08X} - no symbol mapping or address entry", aHash);
-    Platform::StructuredLogging::LogStructured(spdlog::level::warn, "[Addresses]", 
-        fmt::format("Could not resolve hash 0x{:08X}", aHash));
-    Platform::StructuredLogging::PopContext();
     return 0;
 #else
     const auto it = m_addresses.find(aHash);
@@ -269,7 +184,7 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
 #endif
     }
 
-    Log::info("Loading address database from: {}", aPath.string());
+    Log::info("Loading game's addresses from '{}'...", aPath.string());
 
     simdjson::ondemand::parser parser;
     simdjson::padded_string json = simdjson::padded_string::load(aPath.string());
@@ -290,16 +205,8 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
     }
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    // Offsets in our addresses.json are image-relative offsets from the __TEXT base.
-    // Resolve = main executable image base + offset.
-    const auto imageIdx = GetMainExecutableImageIndex();
-    const auto* header = GetMainExecutableHeader();
-    const auto slide = GetMainExecutableSlide();
-    const char* imageName = _dyld_get_image_name(imageIdx);
-    const auto imageBase = reinterpret_cast<std::uintptr_t>(header);
-
-    Log::info("[Addresses] macOS dyld image[{}]='{}' base={} slide={:#x}",
-              imageIdx, imageName ? imageName : "<null>", fmt::ptr(reinterpret_cast<void*>(imageBase)), slide);
+    auto base = reinterpret_cast<std::uintptr_t>(_dyld_get_image_header(0));
+    auto slide = _dyld_get_image_vmaddr_slide(0);
 #else
     auto base = reinterpret_cast<std::uintptr_t>(Platform::GetModuleHandle(nullptr));
 #endif
@@ -350,27 +257,29 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
             stream >> std::hex >> segment >> separator >> offset;
 
 #ifdef RED4EXT_PLATFORM_MACOS
-            std::uintptr_t address = 0;
-
+            // On macOS, offsets in the JSON are relative to segment start
+            // Final address = base + slide + segment offset + relative offset
+            auto base = reinterpret_cast<std::uintptr_t>(_dyld_get_image_header(0));
+            auto slide = _dyld_get_image_vmaddr_slide(0);
+            std::uintptr_t segmentOffset = 0;
+            
             switch (segment)
             {
-            case 1:
-                // Current databases: image-relative offset from __TEXT base.
-                address = imageBase + offset;
+            case 1: // __TEXT segment (code)
+                segmentOffset = m_codeOffset;
                 break;
-            case 2:
-                // Legacy/escape hatch: segment-relative (__DATA_CONST).
-                address = imageBase + static_cast<std::uintptr_t>(m_rdataOffset) + offset;
+            case 2: // __DATA_CONST segment (read-only data)
+                segmentOffset = m_rdataOffset;
                 break;
-            case 3:
-                // Legacy/escape hatch: segment-relative (__DATA).
-                address = imageBase + static_cast<std::uintptr_t>(m_dataOffset) + offset;
+            case 3: // __DATA segment (read-write data)
+                segmentOffset = m_dataOffset;
                 break;
             default:
-                Log::warn("Unknown segment {} for hash 0x{:08X}", segment, static_cast<std::uint32_t>(hash));
-                address = 0;
+                Log::warn("Unknown segment {} for hash 0x{:08X}", segment, hash);
                 break;
             }
+            
+            auto address = base + slide + segmentOffset + offset;
 #else
             switch (segment)
             {
@@ -398,7 +307,7 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
 void Addresses::LoadSections()
 {
 #ifdef RED4EXT_PLATFORM_MACOS
-    const struct mach_header_64* header = GetMainExecutableHeader();
+    const struct mach_header_64* header = reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(0));
     if (header == nullptr)
     {
         Log::error("Error: Could not get Mach-O header.");

@@ -4,17 +4,12 @@
 #include "Image.hpp"
 #include "Platform.hpp"
 #include "Platform/Hooking.hpp"
-#include "Platform/CrashHandler.hpp"
-#include "Platform/RuntimeValidation.hpp"
-#include "Platform/StructuredLogging.hpp"
-#include "Platform/PluginMonitor.hpp"
 #include "Utils.hpp"
 #include "Version.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <libkern/OSCacheControl.h>
 #include <cerrno>
-#include <cstdlib>
 #include "Detail/AddressHashes.hpp"
 #endif
 
@@ -33,12 +28,6 @@ namespace
 std::unique_ptr<App> g_app;
 
 #ifdef RED4EXT_PLATFORM_MACOS
-bool IsEnvFlagEnabled(const char* aName)
-{
-    const char* value = std::getenv(aName);
-    return value && *value && !(value[0] == '0' && value[1] == '\0');
-}
-
 bool TestTextPatchFeasibility()
 {
     constexpr uint32_t kPatchSize = 4;
@@ -120,49 +109,6 @@ App::App()
     spdlog::set_default_logger(logger);
 
     Log::info("RED4ext (v{}) is initializing...", RED4EXT_VERSION_STR);
-
-#ifdef RED4EXT_PLATFORM_MACOS
-    // Initialize structured logging early
-    Platform::StructuredLogging::Initialize(m_paths.GetLogsDir().string());
-    
-    // Enable JSON export if requested
-    const char* jsonLogEnv = std::getenv("RED4EXT_JSON_LOG");
-    if (jsonLogEnv && strlen(jsonLogEnv) > 0)
-    {
-        std::string jsonLogPath = std::string(jsonLogEnv);
-        Platform::StructuredLogging::SetJSONExport(true, jsonLogPath);
-        Log::info("[StructuredLogging] JSON export enabled: {}", jsonLogPath);
-    }
-    
-    // Initialize crash handlers early
-    Platform::CrashHandler::Initialize();
-    Log::info("[CrashHandler] Signal handlers installed (SIGSEGV, SIGBUS, SIGILL, SIGFPE)");
-    Platform::CrashHandler::LogLoadedImages();
-
-    // Perform initial health check
-    Platform::StructuredLogging::PushContext("HealthCheck", "App", "", nullptr, 0);
-    auto healthCheck = Platform::RuntimeValidation::PerformHealthCheck();
-    if (!healthCheck.isHealthy)
-    {
-        Log::error("[RuntimeValidation] Health check FAILED - {} error(s) detected", healthCheck.errors.size());
-        for (const auto& error : healthCheck.errors)
-        {
-            Log::error("[RuntimeValidation]   ERROR: {}", error);
-        }
-    }
-    else
-    {
-        Log::info("[RuntimeValidation] Initial health check passed");
-    }
-    if (!healthCheck.warnings.empty())
-    {
-        Log::warn("[RuntimeValidation] Health check warnings: {}", healthCheck.warnings.size());
-        for (const auto& warning : healthCheck.warnings)
-        {
-            Log::warn("[RuntimeValidation]   WARNING: {}", warning);
-        }
-    }
-#endif
 
     Log::debug("Using the following paths:");
     Log::debug(L"  Root: {}", m_paths.GetRootDir());
@@ -249,15 +195,6 @@ void App::Construct()
 void App::Destruct()
 {
     Log::info("RED4ext is terminating...");
-#ifdef RED4EXT_PLATFORM_MACOS
-    // Export log summary before shutdown
-    if (auto* app = App::Get())
-    {
-        auto summaryPath = app->m_paths.GetLogsDir() / "red4ext_summary.json";
-        Platform::StructuredLogging::ExportSummaryToJSON(summaryPath.string());
-    }
-    Platform::StructuredLogging::Shutdown();
-#endif
 
     // Detaching hooks here and not in dtor, since the dtor can be called by CRT when the processes exists. We don't
     // really care if this will be called or not when the game exist ungracefully.
@@ -307,24 +244,6 @@ void App::Startup()
 
     auto pluginNames = GetPluginSystem()->GetActivePlugins();
     GetLoggerSystem()->RotateLogs(pluginNames);
-
-#ifdef RED4EXT_PLATFORM_MACOS
-    // Generate plugin health report
-    auto healthReport = Platform::PluginMonitor::GenerateHealthReport();
-    Log::debug("[PluginMonitor] Plugin health status:\n{}", healthReport);
-    
-    auto problematicPlugins = Platform::PluginMonitor::GetProblematicPlugins();
-    if (!problematicPlugins.empty())
-    {
-        Log::warn("[PluginMonitor] {} problematic plugin(s) detected:", problematicPlugins.size());
-        for (const auto& name : problematicPlugins)
-        {
-            auto health = Platform::PluginMonitor::GetPluginHealth(name);
-            Log::warn("[PluginMonitor]   - {}: {} error(s), {} hook failure(s)", 
-                     name, health.errors.size(), health.hookFailures);
-        }
-    }
-#endif
 
     Log::info("RED4ext has been started");
 }
@@ -383,18 +302,8 @@ const Paths* App::GetPaths() const
 bool App::AttachHooks() const
 {
     Log::trace("Attaching hooks...");
-#ifdef RED4EXT_PLATFORM_MACOS
-    Platform::StructuredLogging::LogSectionStart("HookAttachment");
-    Platform::StructuredLogging::PushContext("AttachHooks", "App");
-#endif
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    if (IsEnvFlagEnabled("RED4EXT_DISABLE_ALL_HOOKS"))
-    {
-        Log::warn("[Hooking] All RED4ext hooks disabled via RED4EXT_DISABLE_ALL_HOOKS=1");
-        return true;
-    }
-
     DetourSetBackend(static_cast<int32_t>(m_config.GetHooking().backend));
 
     // Phase 0 gate: if native is requested, first verify we can patch __TEXT.
@@ -431,115 +340,37 @@ bool App::AttachHooks() const
     // On macOS, attach hooks individually and continue even if some fail.
     
     int successCount = 0;
-    int totalHooks = 0;
-
-    auto tryAttach = [&](const char* envVar, const char* name, auto&& fnAttach, const char* failMsg) {
-        if (IsEnvFlagEnabled(envVar))
-        {
-            Log::warn("[Hooking] {} hook disabled via {}=1", name, envVar);
-            return;
-        }
-
-        totalHooks++;
-        if (fnAttach())
-        {
-            successCount++;
-        }
-        else
-        {
-            Log::warn("{}", failMsg);
-        }
-    };
-
-    tryAttach("RED4EXT_DISABLE_HOOK_CGAMEAPPLICATION",
-              "CGameApplication",
-              []() { return Hooks::CGameApplication::Attach(); },
-              "CGameApplication hook failed - state management may be limited");
-
-    tryAttach("RED4EXT_DISABLE_HOOK_EXECUTEPROCESS",
-              "ExecuteProcess",
-              []() { return Hooks::ExecuteProcess::Attach(); },
-              "ExecuteProcess hook failed - script compilation redirection unavailable");
-
-    tryAttach("RED4EXT_DISABLE_HOOK_INITSCRIPTS",
-              "InitScripts",
-              []() { return Hooks::InitScripts::Attach(); },
-              "InitScripts hook failed - script initialization hooks unavailable");
-
-    tryAttach("RED4EXT_DISABLE_HOOK_LOADSCRIPTS",
-              "LoadScripts",
-              []() { return Hooks::LoadScripts::Attach(); },
-              "LoadScripts hook failed - script loading hooks unavailable");
-
-    tryAttach("RED4EXT_DISABLE_HOOK_VALIDATESCRIPTS",
-              "ValidateScripts",
-              []() { return Hooks::ValidateScripts::Attach(); },
-              "ValidateScripts hook failed - script validation hooks unavailable");
-
-    tryAttach("RED4EXT_DISABLE_HOOK_ASSERTIONFAILED",
-              "AssertionFailed",
-              []() { return Hooks::AssertionFailed::Attach(); },
-              "AssertionFailed hook failed - assertion logging unavailable");
-
-    tryAttach("RED4EXT_DISABLE_HOOK_COLLECTSAVEABLESYSTEMS",
-              "CollectSaveableSystems",
-              []() { return Hooks::CollectSaveableSystems::Attach(); },
-              "CollectSaveableSystems hook failed - save system hooks unavailable");
-
-    tryAttach("RED4EXT_DISABLE_HOOK_SESSIONACTIVE",
-              "gsmState_SessionActive",
-              []() { return Hooks::gsmState_SessionActive::Attach(); },
-              "gsmState_SessionActive hook failed - session state hooks unavailable");
+    int totalHooks = 8;
+    
+    if (Hooks::CGameApplication::Attach()) successCount++; 
+    else Log::warn("CGameApplication hook failed - state management may be limited");
+    
+    if (Hooks::ExecuteProcess::Attach()) successCount++;
+    else Log::warn("ExecuteProcess hook failed - script compilation redirection unavailable");
+    
+    if (Hooks::InitScripts::Attach()) successCount++;
+    else Log::warn("InitScripts hook failed - script initialization hooks unavailable");
+    
+    if (Hooks::LoadScripts::Attach()) successCount++;
+    else Log::warn("LoadScripts hook failed - script loading hooks unavailable");
+    
+    if (Hooks::ValidateScripts::Attach()) successCount++;
+    else Log::warn("ValidateScripts hook failed - script validation hooks unavailable");
+    
+    if (Hooks::AssertionFailed::Attach()) successCount++;
+    else Log::warn("AssertionFailed hook failed - assertion logging unavailable");
+    
+    if (Hooks::CollectSaveableSystems::Attach()) successCount++;
+    else Log::warn("CollectSaveableSystems hook failed - save system hooks unavailable");
+    
+    if (Hooks::gsmState_SessionActive::Attach()) successCount++;
+    else Log::warn("gsmState_SessionActive hook failed - session state hooks unavailable");
     
     Log::info("Attached {}/{} hooks successfully", successCount, totalHooks);
-    
-#ifdef RED4EXT_PLATFORM_MACOS
-    // Log hook statistics
-    auto hookStats = Platform::RuntimeValidation::GetHookStatistics();
-    if (hookStats.totalHooks > 0)
-    {
-        Log::info("[RuntimeValidation] Hook statistics: total={} success={} failed={} invalid_targets={}", 
-                  hookStats.totalHooks, hookStats.successfulHooks, hookStats.failedHooks, hookStats.invalidTargets);
-        
-        if (!hookStats.failedHookDetails.empty())
-        {
-            Log::warn("[RuntimeValidation] Failed hook details (showing first {}):", 
-                      std::min(static_cast<size_t>(5), hookStats.failedHookDetails.size()));
-            for (size_t i = 0; i < std::min(static_cast<size_t>(5), hookStats.failedHookDetails.size()); ++i)
-            {
-                const auto& [target, reason] = hookStats.failedHookDetails[i];
-                Log::warn("[RuntimeValidation]   {}: {}", fmt::ptr(target), reason);
-            }
-        }
-    }
-
-    // Post-hook health check
-    auto postHookHealth = Platform::RuntimeValidation::PerformHealthCheck();
-    if (!postHookHealth.isHealthy)
-    {
-        Log::error("[RuntimeValidation] Post-hook health check FAILED");
-        for (const auto& error : postHookHealth.errors)
-        {
-            Log::error("[RuntimeValidation]   ERROR: {}", error);
-        }
-    }
-    if (!postHookHealth.warnings.empty())
-    {
-        Log::warn("[RuntimeValidation] Post-hook warnings: {}", postHookHealth.warnings.size());
-        for (const auto& warning : postHookHealth.warnings)
-        {
-            Log::warn("[RuntimeValidation]   WARNING: {}", warning);
-        }
-    }
-#endif
     
     // On macOS, we consider initialization successful even with partial hooks
     // Plugin loading and basic functionality should still work
     transaction.Commit();
-#ifdef RED4EXT_PLATFORM_MACOS
-    Platform::StructuredLogging::PopContext();
-    Platform::StructuredLogging::LogSectionEnd("HookAttachment");
-#endif
     return true;
 #else
     DetourTransaction transaction;

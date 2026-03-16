@@ -1,2 +1,0 @@
-/usr/bin/ar qc libs/libfishhook.a CMakeFiles/fishhook.dir/deps/fishhook/fishhook.c.o
-/usr/bin/ranlib libs/libfishhook.a

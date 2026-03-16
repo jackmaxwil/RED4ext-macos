@@ -1,13 +1,8 @@
 #include "PluginSystem.hpp"
-#include "App.hpp"
 #include "Image.hpp"
 #include "Utils.hpp"
 #include "Version.hpp"
 #include "v0/Plugin.hpp"
-
-#ifdef RED4EXT_PLATFORM_MACOS
-#include "Platform/PluginMonitor.hpp"
-#endif
 
 #define MINIMUM_API_VERSION RED4EXT_API_VERSION_0
 #define LATEST_API_VERSION RED4EXT_API_VERSION_LATEST
@@ -77,7 +72,6 @@ void PluginSystem::Startup()
     }
 
     std::vector<PluginLoadInfo> pluginInfos;
-    std::unordered_set<std::wstring> seenPluginPaths;
 
     auto end = std::filesystem::end(iter);
     for (; iter != end; iter.increment(ec))
@@ -144,18 +138,7 @@ void PluginSystem::Startup()
 
             bool useAlteredSearchPath = depth == 1;
 
-            // Deduplicate plugins by canonical path (symlink-safe).
-            std::error_code canonEc;
-            const auto canonPath = std::filesystem::weakly_canonical(path, canonEc);
-            const auto& keyPath = canonEc ? path : canonPath;
-
-            if (!seenPluginPaths.emplace(keyPath.wstring()).second)
-            {
-                Log::debug(L"Skipping duplicate plugin file '{}'", keyPath);
-                continue;
-            }
-
-            pluginInfos.push_back({keyPath, useAlteredSearchPath});
+            pluginInfos.push_back({path, useAlteredSearchPath});
         }
         else if (ec)
         {
@@ -233,39 +216,28 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
 #ifdef RED4EXT_PLATFORM_MACOS
     if (aPath.extension() == L".app" || aPath.filename() == L"Cyberpunk2077")
     {
-        // Main executable - use a handle scoped to the main image (avoid RTLD_DEFAULT collisions).
-        handle.reset(Platform::GetModuleHandle(nullptr));
+        // Main executable - use RTLD_DEFAULT
+        handle.reset(RTLD_DEFAULT);
     }
     else
     {
+        // Load dylib with RTLD_GLOBAL to make symbols available to other plugins
+        int flags = RTLD_LAZY | RTLD_GLOBAL;
+        if (aUseAlteredSearchPath)
+        {
+            // On macOS, we can't easily change search path like Windows
+            // But we can try to load from the plugin's directory first
+            // For now, just use RTLD_GLOBAL
+        }
+        
         std::string pathStr = aPath.string();
-
-        // Prefer RTLD_LOCAL to avoid global symbol collisions; fall back to RTLD_GLOBAL
-        // for plugins that rely on inter-plugin symbol resolution.
-        void* h = nullptr;
-        const int localFlags = RTLD_LAZY | RTLD_LOCAL;
-        h = dlopen(pathStr.c_str(), localFlags);
+        void* h = dlopen(pathStr.c_str(), flags);
         if (!h)
         {
             const char* err = dlerror();
-            const int globalFlags = RTLD_LAZY | RTLD_GLOBAL;
-            h = dlopen(pathStr.c_str(), globalFlags);
-        if (!h)
-        {
-            const char* err2 = dlerror();
-            std::string errorMsg = err2 ? err2 : (err ? err : "Unknown error");
-            Log::warn(L"Could not load plugin '{}'. Error: '{}', path: '{}'", stem,
-                      Utils::Widen(errorMsg), aPath);
-#ifdef RED4EXT_PLATFORM_MACOS
-            std::string stemStr = Utils::Narrow(stem.wstring());
-            Platform::PluginMonitor::RecordPluginError(stemStr, 
-                                                        fmt::format("dlopen failed: {}", errorMsg));
-#endif
+            Log::warn(L"Could not load plugin '{}'. Error: '{}', path: '{}'", stem, 
+                        err ? Utils::Widen(err) : L"Unknown error", aPath);
             return;
-        }
-
-            Log::debug(L"Plugin '{}' required RTLD_GLOBAL fallback (initial error: '{}')", stem,
-                       err ? Utils::Widen(err) : L"Unknown error");
         }
         handle.reset(h);
     }
@@ -351,17 +323,9 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
     auto module = plugin->GetModule();
     m_plugins.emplace(module, plugin);
 
-#ifdef RED4EXT_PLATFORM_MACOS
-    std::string pluginNameNarrow = Utils::Narrow(pluginName);
-    Platform::PluginMonitor::RecordPluginLoad(pluginNameNarrow);
-#endif
-
     if (!plugin->Main(RED4ext::EMainReason::Load))
     {
         Log::warn(L"{} did not initialize properly, unloading...", pluginName);
-#ifdef RED4EXT_PLATFORM_MACOS
-        Platform::PluginMonitor::RecordPluginError(pluginNameNarrow, "Main() returned false");
-#endif
         Unload(plugin);
 
         return;
@@ -373,27 +337,11 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
 
 PluginSystem::MapIter_t PluginSystem::Unload(std::shared_ptr<PluginBase> aPlugin)
 {
-#ifdef RED4EXT_PLATFORM_MACOS
-    // Detach hooks before unloading to avoid callbacks into soon-to-be-unloaded code.
-    if (auto* app = App::Get())
-    {
-        if (auto* hooking = app->GetHookingSystem())
-        {
-            hooking->DetachAll(aPlugin);
-        }
-    }
-#endif
-
     aPlugin->Main(RED4ext::EMainReason::Unload);
 
     auto module = aPlugin->GetModule();
     auto iter = m_plugins.find(module);
     auto result = m_plugins.erase(iter);
-
-#ifdef RED4EXT_PLATFORM_MACOS
-    std::string pluginNameNarrow = Utils::Narrow(aPlugin->GetName());
-    Platform::PluginMonitor::RecordPluginUnload(pluginNameNarrow);
-#endif
 
     Log::info(L"{} has been unloaded", aPlugin->GetName());
     return result;

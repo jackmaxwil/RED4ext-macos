@@ -170,52 +170,6 @@ bool HookingSystem::Detach(std::shared_ptr<PluginBase> aPlugin, void* aTarget)
     return count > 0;
 }
 
-bool HookingSystem::DetachAll(std::shared_ptr<PluginBase> aPlugin)
-{
-    Log::trace(L"Detaching all hooks attached by '{}'...", aPlugin->GetName());
-    std::scoped_lock _(m_mutex);
-
-    auto range = m_hooks.equal_range(aPlugin);
-    if (range.first == range.second)
-    {
-        return true;
-    }
-
-    DetourTransaction transaction;
-    size_t queued = 0;
-
-    for (auto it = range.first; it != range.second; ++it)
-    {
-        auto& item = it->second;
-        if (QueueForDetach(aPlugin, item))
-        {
-            queued++;
-        }
-    }
-
-    if (!transaction.Commit())
-    {
-        Log::warn(L"Could not detach hooks attached by '{}' (queued: {})", aPlugin->GetName(), queued);
-        return false;
-    }
-
-    // Erase all hooks for this plugin and null out originals.
-    range = m_hooks.equal_range(aPlugin);
-    for (auto it = range.first; it != range.second;)
-    {
-        auto& item = it->second;
-        if (item.original)
-        {
-            *item.original = nullptr;
-        }
-
-        it = m_hooks.erase(it);
-    }
-
-    Log::trace(L"{} hook(s) detached for '{}'", queued, aPlugin->GetName());
-    return true;
-}
-
 bool HookingSystem::QueueForDetach(std::shared_ptr<PluginBase> aPlugin, Item& aItem)
 {
     if (aItem.symbol)

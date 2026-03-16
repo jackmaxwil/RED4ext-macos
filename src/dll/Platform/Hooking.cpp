@@ -1,9 +1,6 @@
 #include "stdafx.hpp"
 #include "Hooking.hpp"
 #include "Platform.hpp"
-#include "Platform/CrashHandler.hpp"
-#include "Platform/RuntimeValidation.hpp"
-#include "Platform/StructuredLogging.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <libkern/OSCacheControl.h>
@@ -284,57 +281,15 @@ bool CreateTrampoline(void* target, void* detour, HookRecord& outRec)
 int32_t NativeDetourAttach(void** ppPointer, void* pDetour)
 {
     void* target = *ppPointer;
-    
-#ifdef RED4EXT_PLATFORM_MACOS
-    Platform::StructuredLogging::PushContext("NativeDetourAttach", "Hooking", "", target);
-#endif
-    
     if (!target || !pDetour)
     {
-        spdlog::error("[Hooking] NativeDetourAttach: null pointer (target={}, detour={})", 
-                      fmt::ptr(target), fmt::ptr(pDetour));
-        Platform::RuntimeValidation::RecordHookAttempt(target, false, "null pointer");
-#ifdef RED4EXT_PLATFORM_MACOS
-        Platform::StructuredLogging::LogStructured(spdlog::level::err, "[Hooking]", 
-            fmt::format("NativeDetourAttach failed: null pointer (target={}, detour={})", 
-                       fmt::ptr(target), fmt::ptr(pDetour)));
-        Platform::StructuredLogging::PopContext();
-#endif
         return -1;
     }
-
-    // Comprehensive hook target validation
-#ifdef RED4EXT_PLATFORM_MACOS
-    auto validation = Platform::RuntimeValidation::ValidateHookTarget(target, pDetour);
-    if (!validation.isValid)
-    {
-        spdlog::error("[Hooking] NativeDetourAttach: VALIDATION FAILED for target {}: {}", 
-                      fmt::ptr(target), validation.reason);
-        if (validation.nearestValidRegion)
-        {
-            spdlog::error("[Hooking] Nearest valid region: {} size={}", 
-                          fmt::ptr(validation.nearestValidRegion), validation.regionSize);
-        }
-        Platform::RuntimeValidation::RecordHookAttempt(target, false, validation.reason);
-        return -1;
-    }
-
-    // Additional prologue validation
-    std::string prologueReason;
-    if (!Platform::RuntimeValidation::ValidateFunctionPrologue(target, prologueReason))
-    {
-        spdlog::warn("[Hooking] NativeDetourAttach: Prologue validation warning for {}: {}", 
-                     fmt::ptr(target), prologueReason);
-        // Don't fail - some functions might have unusual prologues
-    }
-#endif
 
     HookRecord rec;
     if (!CreateTrampoline(target, pDetour, rec))
     {
-        spdlog::error("[Hooking] Failed to create trampoline for {} -> {}", 
-                      fmt::ptr(target), fmt::ptr(pDetour));
-        Platform::RuntimeValidation::RecordHookAttempt(target, false, "trampoline creation failed");
+        spdlog::error("[Hooking] Failed to create trampoline for {}", target);
         return -1;
     }
 
@@ -360,15 +315,6 @@ int32_t NativeDetourAttach(void** ppPointer, void* pDetour)
 
     g_hooksByTrampoline.emplace(rec.trampoline, rec);
     *ppPointer = rec.trampoline;
-    
-#ifdef RED4EXT_PLATFORM_MACOS
-    Platform::RuntimeValidation::RecordHookAttempt(target, true, "hook attached successfully");
-    Platform::StructuredLogging::LogStructured(spdlog::level::info, "[Hooking]", 
-        fmt::format("Hook attached: target={} detour={} trampoline={}", 
-                   fmt::ptr(target), fmt::ptr(pDetour), fmt::ptr(rec.trampoline)));
-    Platform::StructuredLogging::PopContext();
-#endif
-    
     return NO_ERROR;
 }
 
@@ -535,38 +481,13 @@ int32_t DetourAttach(void** ppPointer, void* pDetour)
         void* pTarget = *ppPointer;
         if (!pTarget || !pDetour)
         {
-            spdlog::error("[Hooking] DetourAttach failed: null pointer (target={}, detour={})", 
-                          fmt::ptr(pTarget), fmt::ptr(pDetour));
-#ifdef RED4EXT_PLATFORM_MACOS
-            Platform::RuntimeValidation::RecordHookAttempt(pTarget, false, "null pointer");
-#endif
+            spdlog::error("[Hooking] DetourAttach failed: null pointer");
             return -1;
         }
 
-#ifdef RED4EXT_PLATFORM_MACOS
-        // Comprehensive validation for Frida Gadget hooks
-        auto validation = Platform::RuntimeValidation::ValidateHookTarget(pTarget, pDetour);
-        if (!validation.isValid)
-        {
-            spdlog::warn("[Hooking] Hook #{} VALIDATION WARNING for target {}: {}", 
-                         g_hookCount + 1, fmt::ptr(pTarget), validation.reason);
-            if (validation.nearestValidRegion)
-            {
-                spdlog::warn("[Hooking] Nearest valid region: {} size={}", 
-                             fmt::ptr(validation.nearestValidRegion), validation.regionSize);
-            }
-            // Don't fail - Frida Gadget might handle invalid addresses differently
-            Platform::RuntimeValidation::RecordHookAttempt(pTarget, false, validation.reason);
-        }
-        else
-        {
-            Platform::RuntimeValidation::RecordHookAttempt(pTarget, true, "hook registered");
-        }
-#endif
-
         g_hookCount++;
-        spdlog::info("[Hooking] Hook #{} registered at {} -> {} (Frida Gadget backend)", 
-                     g_hookCount, fmt::ptr(pTarget), fmt::ptr(pDetour));
+        spdlog::info("[Hooking] Hook #{} registered at {} -> {} (Frida Gadget backend)", g_hookCount, pTarget,
+                     pDetour);
         return NO_ERROR;
     }
 

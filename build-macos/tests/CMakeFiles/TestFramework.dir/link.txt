@@ -1,2 +1,0 @@
-/usr/bin/ar qc ../libs/libTestFramework.a CMakeFiles/TestFramework.dir/fixtures/MockGameBinary.cpp.o CMakeFiles/TestFramework.dir/fixtures/AccurateMockGenerator.cpp.o CMakeFiles/TestFramework.dir/fixtures/EnhancedMockGameBinary.cpp.o
-/usr/bin/ranlib ../libs/libTestFramework.a
