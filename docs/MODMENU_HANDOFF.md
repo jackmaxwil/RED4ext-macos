@@ -35,7 +35,7 @@
 ## Project Structure
 
 ```
-/Users/jackmazac/Development/cp2077-modmenu/
+~/Development/cyberpunk/cp2077-modmenu/
 ├── src/
 │   ├── main.cpp                 # Plugin entry + bridge functions
 │   └── modmenu_backend.cpp      # Backend implementation
@@ -350,12 +350,12 @@ public class ModMenuToggleEvent extends Event {
 
 ```bash
 # Build ModMenu
-cd /Users/jackmazac/Development/cp2077-modmenu/build
+cd ~/Development/cyberpunk/cp2077-modmenu/build
 cmake .. && make -j$(sysctl -n hw.ncpu)
 
 # Install to game
 GAME_DIR="$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077"
-cp /Users/jackmazac/Development/cp2077-modmenu/build/libModMenu.dylib "$GAME_DIR/red4ext/plugins/ModMenu/ModMenu.dylib"
+cp ~/Development/cyberpunk/cp2077-modmenu/build/libModMenu.dylib "$GAME_DIR/red4ext/plugins/ModMenu/ModMenu.dylib"
 codesign -f -s - "$GAME_DIR/red4ext/plugins/ModMenu/ModMenu.dylib"
 
 # Launch game
@@ -393,8 +393,8 @@ After ModMenu completion, proceed to:
 **Current Blockers:** None - ready to implement UI
 
 **Key Files:**
-- Native: `/Users/jackmazac/Development/cp2077-modmenu/src/main.cpp`
-- UI Hook: `/Users/jackmazac/Development/cp2077-modmenu/scripts/Scripts/ModMenu/InkHooks.reds`
-- Events: `/Users/jackmazac/Development/cp2077-modmenu/scripts/Scripts/ModMenu/Events.reds`
+- Native: `~/Development/cyberpunk/cp2077-modmenu/src/main.cpp`
+- UI Hook: `~/Development/cyberpunk/cp2077-modmenu/scripts/Scripts/ModMenu/InkHooks.reds`
+- Events: `~/Development/cyberpunk/cp2077-modmenu/scripts/Scripts/ModMenu/Events.reds`
 
 **End of Handoff Document**

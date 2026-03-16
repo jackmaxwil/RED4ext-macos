@@ -121,15 +121,18 @@ All core components of the RED4ext macOS modding ecosystem are implemented and b
 
 ## Project Locations
 
-| Project | Path | Build Status |
-|---------|------|-------------|
-| RED4ext | `/Users/jackmazac/Development/RED4ext/` | Builds |
-| RED4ext.SDK | `/Users/jackmazac/Development/RED4ext.SDK/` | Headers only |
-| TweakXL | `/Users/jackmazac/Development/cp2077-tweak-xl/` | Builds |
-| ArchiveXL | `/Users/jackmazac/Development/cp2077-archive-xl-macos/` | Builds |
-| ModMenu | `/Users/jackmazac/Development/cp2077-modmenu/` | Builds |
-| MetalFX | `/Users/jackmazac/Development/cp2077-metalfx-denoiser/` | Builds |
-| CyberMod Studio | `/Users/jackmazac/Development/cybermod-studio/` | CyberModCore builds |
+All projects live under `~/Development/cyberpunk/`.
+
+| Project | Directory | Build Status |
+|---------|-----------|-------------|
+| RED4ext | `RED4ext/` | Builds |
+| RED4ext.SDK | `RED4ext.SDK/` | Headers only |
+| TweakXL | `cp2077-tweak-xl/` | Builds |
+| ArchiveXL | `cp2077-archive-xl-macos/` | Builds |
+| ModMenu | `cp2077-modmenu/` | Builds |
+| MetalFX | `cp2077-metalfx-denoiser/` | Builds |
+| CyberMod Studio | `cybermod-studio/` | CyberModCore builds |
+| Mod Manager (legacy) | `macos-modmanager/` | Superseded |
 
 ---
 

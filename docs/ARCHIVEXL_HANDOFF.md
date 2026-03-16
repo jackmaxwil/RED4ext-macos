@@ -35,7 +35,7 @@
 ## ArchiveXL Project Structure
 
 ```
-/Users/jackmazac/Development/cp2077-archive-xl-macos/
+~/Development/cyberpunk/cp2077-archive-xl-macos/
 ├── src/
 │   ├── Red/Addresses/Library.hpp          # 130 hash constants
 │   ├── App/Extensions/                    # Extension services
@@ -253,7 +253,7 @@ auto hookInit = HookAfter<Raw::ResourceDepot_InitializeArchives>([&]() {
 
 ```bash
 # Build ArchiveXL
-cd /Users/jackmazac/Development/cp2077-archive-xl-macos
+cd ~/Development/cyberpunk/cp2077-archive-xl-macos
 mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(sysctl -n hw.ncpu)
@@ -310,10 +310,10 @@ ArchiveXL Phase 2.2 is complete when:
 
 ## Resources
 
-- **EXECPLAN:** `/Users/jackmazac/Development/cybermod-studio/docs/EXECPLAN.md`
-- **ArchiveXL Status:** `/Users/jackmazac/Development/cp2077-archive-xl-macos/docs/STATUS.md`
-- **Address Discovery:** `/Users/jackmazac/Development/cp2077-archive-xl-macos/docs/MACOS_ADDRESS_DISCOVERY.md`
-- **RED4ext Validation:** `/Users/jackmazac/Development/RED4ext/docs/VALIDATION_REPORT.md`
+- **EXECPLAN:** `~/Development/cyberpunk/cybermod-studio/docs/EXECPLAN.md`
+- **ArchiveXL Status:** `~/Development/cyberpunk/cp2077-archive-xl-macos/docs/STATUS.md`
+- **Address Discovery:** `~/Development/cyberpunk/cp2077-archive-xl-macos/docs/MACOS_ADDRESS_DISCOVERY.md`
+- **RED4ext Validation:** `~/Development/cyberpunk/RED4ext/docs/VALIDATION_REPORT.md`
 
 ---
 
