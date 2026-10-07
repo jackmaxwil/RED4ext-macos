@@ -217,6 +217,16 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
                 shot hold-before
                 press_key "$CP_KEYCODE"
                 sleep 3; shot hold-after
+                # CP_CLICKS="fx,fy ... key:N ..." then clicks those points (fractions of the window, as in the
+                # screenshot) or presses key code N, with a screenshot after each step.
+                n=0
+                for c in ${CP_CLICKS:-}; do
+                    n=$((n + 1))
+                    if [[ $c == key:* ]]; then press_key "${c#key:}"; else
+                        swift "$TOOLS_DIR/click.swift" "$GAME_PID" "${c%,*}" "${c#*,}" >>"$RUN_DIR/keys.log" 2>&1 || true
+                    fi
+                    sleep 2; shot "click-$n"
+                done
             fi
         else
             sleep 5
