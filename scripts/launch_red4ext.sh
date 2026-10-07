@@ -8,6 +8,30 @@ GAME_BINARY="$SCRIPT_DIR/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077"
 
 echo "=== RED4ext macOS Launcher ==="
 
+# The game binary's Mach-O UUID (LC_UUID), uppercase hex without dashes. Perl ships with macOS; dwarfdump/otool need
+# the Xcode command line tools.
+macho_uuid() {
+    perl -e 'open F,"<",$ARGV[0] or exit 1; binmode F; read F,$h,32; ($m,$ct,$st,$ft,$n)=unpack("V5",$h);
+        exit 1 unless $m==0xfeedfacf; $o=32; for(1..$n){seek F,$o,0; read F,$c,8; ($cmd,$sz)=unpack("V2",$c);
+        if($cmd==0x1b){read F,$u,16; print uc unpack("H*",$u); exit 0} $o+=$sz} exit 1' "$1"
+}
+db_uuid() { grep -o '"uuid" *: *"[^"]*"' "$1" | head -1 | sed 's/.*"\([^"]*\)"$/\1/' | tr -d '-' | tr '[:lower:]' '[:upper:]'; }
+
+# Pre-flight. A Steam update (or "Verify integrity") replaces the game binary: it loses RED4ext's signature, and a new
+# game build is one this release's addresses were not verified for. In both cases stop here; Steam's Play button still
+# starts the game without mods.
+DB_FILE="$RED4EXT_DIR/bin/x64/cyberpunk2077_addresses.json"
+if [[ "$(macho_uuid "$GAME_BINARY")" != "$(db_uuid "$DB_FILE")" ]]; then
+    echo "The game was updated to a build this RED4ext release does not support yet. Not starting with mods."
+    echo "Wait for a RED4ext release for the new game version, or play without mods from Steam."
+    exit 1
+fi
+if ! codesign -d --entitlements - --xml "$GAME_BINARY" 2>/dev/null | grep -q allow-unsigned-executable-memory; then
+    echo "The game binary is not set up for RED4ext (Steam replaced it). Run this once, then launch again:"
+    echo "  \"$RED4EXT_DIR/macos/scripts/install_macos.sh\""
+    exit 1
+fi
+
 
 # Compile REDscript together with the scripts of the plugins RED4ext will load (staged under r6/scripts because scc
 # takes one folder). A plugin's scripts declare its natives, and the game stops with "Failed to initialize scripts
