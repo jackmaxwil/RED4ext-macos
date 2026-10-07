@@ -52,5 +52,13 @@ fi
 # Process input mappings
 [[ -x "$SCRIPT_DIR/engine/tools/inputloader.pl" ]] && "$SCRIPT_DIR/engine/tools/inputloader.pl" 2>&1 || true
 
+# Started outside Steam, the game's SteamAPI_Init has no app ID and fails (no saves, no achievements). Pass the ID that
+# Steam itself sets, only when Steam is already running; this script never starts Steam.
+if pgrep -q steam_osx; then
+    export SteamAppId=1091500 SteamGameId=1091500
+else
+    echo "Steam is not running: start Steam and sign in first, or saves will not be available."
+fi
+
 echo "Launching with RED4ext..."
 DYLD_INSERT_LIBRARIES="$RED4EXT_DIR/RED4ext.dylib" "$GAME_BINARY" "$@"
