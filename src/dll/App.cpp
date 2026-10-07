@@ -18,8 +18,9 @@
 #include "Hooks/ExecuteProcess.hpp"
 #include "Hooks/InitScripts.hpp"
 #include "Hooks/LoadScripts.hpp"
-#include "Hooks/Main_Hooks.hpp"
+#include "Hooks/QuickExit.hpp"
 #include "Hooks/ValidateScripts.hpp"
+#include "Hooks/WinMain.hpp"
 #include "Hooks/gsmState_SessionActive.hpp"
 
 #include <cstdio>
@@ -104,7 +105,7 @@ App::App()
     auto logger = Utils::CreateLogger(L"RED4ext", filename, m_paths, m_config, m_devConsole);
     spdlog::set_default_logger(logger);
 
-    Log::info("RED4ext (v{}) is initializing...", RED4EXT_VERSION_STR);
+    Log::info(L"RED4ext (v{}) is initializing...", Version::Get());
 
     Log::debug("Using the following paths:");
     Log::debug(L"  Root: {}", m_paths.GetRootDir());
@@ -161,8 +162,8 @@ App::App()
     Log::info("macOS runtime version detected: {}.{}.{}.{}", fileVer.major, fileVer.minor, fileVer.build,
               fileVer.revision);
 #else
-    auto minimumVersion = RED4EXT_RUNTIME_2_31;
-    if (fileVer < RED4EXT_RUNTIME_2_31)
+    const auto minimumVersion = RED4EXT_V1_RUNTIME_VERSION_2_31;
+    if (fileVer < minimumVersion)
     {
         Log::error(L"To use this version of RED4ext, ensure your game is updated to patch 2.31 or newer");
         return;
@@ -231,17 +232,11 @@ void App::Destruct()
     DetourTransaction transaction;
     if (transaction.IsValid())
     {
-#ifdef RED4EXT_PLATFORM_MACOS
-        auto success = Hooks::CGameApplication::Detach() && Hooks::Main::Detach() && Hooks::ExecuteProcess::Detach() &&
-                       Hooks::InitScripts::Detach() && Hooks::LoadScripts::Detach() &&
-                       Hooks::ValidateScripts::Detach() && Hooks::AssertionFailed::Detach() &&
-                       Hooks::CollectSaveableSystems::Detach() && Hooks::gsmState_SessionActive::Detach();
-#else
-        auto success = Hooks::CGameApplication::Detach() && Hooks::Main::Detach() && Hooks::ExecuteProcess::Detach() &&
-                       Hooks::InitScripts::Detach() && Hooks::LoadScripts::Detach() &&
-                       Hooks::ValidateScripts::Detach() && Hooks::AssertionFailed::Detach() &&
+        auto success = Hooks::WinMain::Detach() && Hooks::QuickExit::Detach() && Hooks::CGameApplication::Detach() &&
+                       Hooks::ExecuteProcess::Detach() && Hooks::InitScripts::Detach() &&
+                       Hooks::LoadScripts::Detach() && Hooks::ValidateScripts::Detach() &&
+                       Hooks::AssertionFailed::Detach() && Hooks::CollectSaveableSystems::Detach() &&
                        Hooks::gsmState_SessionActive::Detach();
-#endif
         if (success)
         {
             transaction.Commit();
@@ -383,7 +378,7 @@ bool App::AttachHooks() const
     int totalHooks = 1;
 
     // Always required: plugins are loaded from the game's main(), not from the dylib constructor.
-    if (Hooks::Main::Attach())
+    if (Hooks::WinMain::Attach())
         successCount++;
     else
         Log::error("main() hook failed - plugins will not be loaded");
@@ -479,10 +474,10 @@ bool App::AttachHooks() const
         return false;
     }
 
-    auto success = Hooks::Main::Attach() && Hooks::CGameApplication::Attach() && Hooks::ExecuteProcess::Attach() &&
-                   Hooks::InitScripts::Attach() && Hooks::LoadScripts::Attach() && Hooks::ValidateScripts::Attach() &&
-                   Hooks::AssertionFailed::Attach() && Hooks::CollectSaveableSystems::Attach() &&
-                   Hooks::gsmState_SessionActive::Attach();
+    auto success = Hooks::WinMain::Attach() && Hooks::QuickExit::Attach() && Hooks::CGameApplication::Attach() &&
+                   Hooks::ExecuteProcess::Attach() && Hooks::InitScripts::Attach() && Hooks::LoadScripts::Attach() &&
+                   Hooks::ValidateScripts::Attach() && Hooks::AssertionFailed::Attach() &&
+                   Hooks::CollectSaveableSystems::Attach() && Hooks::gsmState_SessionActive::Attach();
     if (success)
     {
         return transaction.Commit();

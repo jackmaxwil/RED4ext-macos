@@ -32,12 +32,13 @@ private:
     };
 
     void SetState(const State aState);
-    void QueueThreadsForUpdate();
+    bool QueueThreadsForUpdate();
 
     const std::source_location m_source;
     State m_state;
 #ifndef RED4EXT_PLATFORM_MACOS
     std::vector<wil::unique_handle> m_handles;
+    bool m_hasHeapLock;
 #else
     std::vector<thread_t> m_threads;
     thread_act_array_t m_threadArray;

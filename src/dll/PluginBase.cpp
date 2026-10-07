@@ -2,9 +2,22 @@
 #include "Platform.hpp"
 #include "Utils.hpp"
 #include "stdafx.hpp"
+
+#include <RED4ext/Api/v1/EMainReason.hpp>
+#include <RED4ext/Api/v1/PluginHandle.hpp>
+#include <spdlog/spdlog.h>
+
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <dlfcn.h>
+#else
+#include <wil/resource.h>
+
+#include <Windows.h>
 #endif
+
+#include <exception>
+#include <filesystem>
+#include <utility>
 
 PluginBase::PluginBase(const std::filesystem::path& aPath, wil::unique_hmodule aModule)
     : m_path(aPath)
@@ -86,15 +99,15 @@ bool PluginBase::Query()
     return true;
 }
 
-bool PluginBase::Main(RED4ext::EMainReason aReason)
+bool PluginBase::Main(RED4ext::v1::EMainReason aReason)
 {
     const auto module = GetModule();
     const auto name = GetName();
-    const auto reasonStr = aReason == RED4ext::EMainReason::Load ? L"Load" : L"Unload";
+    const auto reasonStr = aReason == RED4ext::v1::EMainReason::Load ? L"Load" : L"Unload";
 
     Log::trace(L"Calling 'Main' function exported by '{}' with reason '{}'...", name, reasonStr);
 
-    using Main_t = bool (*)(RED4ext::PluginHandle, RED4ext::EMainReason, const void*);
+    using Main_t = bool (*)(RED4ext::v1::PluginHandle, RED4ext::v1::EMainReason, const void*);
 #ifdef RED4EXT_PLATFORM_MACOS
     auto mainFn = reinterpret_cast<Main_t>(Platform::GetProcAddress(module, "Main"));
 #else

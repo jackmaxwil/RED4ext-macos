@@ -4,7 +4,25 @@
 #include "Detail/AddressHashes.hpp"
 #include "Hook.hpp"
 #include "RED4ext/Scripting/ScriptReport.hpp"
+#include "ScriptValidationError.hpp"
+#include "Systems/PluginSystem.hpp"
 #include "Systems/ScriptCompilationSystem.hpp"
+#include "Utils.hpp"
+
+#include <fmt/xchar.h>
+#include <spdlog/spdlog.h>
+
+#ifndef RED4EXT_PLATFORM_MACOS
+#include <Windows.h>
+#endif
+
+#include <cstdint>
+#include <iterator>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_set>
+#include <vector>
 
 namespace
 {

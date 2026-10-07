@@ -1,6 +1,21 @@
 #include "Config.hpp"
+#include "Paths.hpp"
 #include "Utils.hpp"
 #include "stdafx.hpp"
+
+#include <spdlog/common.h>
+#include <toml.hpp>
+
+#ifndef RED4EXT_PLATFORM_MACOS
+#include <Windows.h>
+#endif
+
+#include <exception>
+#include <filesystem>
+#include <iostream>
+#include <string>
+#include <system_error>
+#include <vector>
 
 #define DEFAULT_TOML_EXCEPTION_MSG L"An exception occured while parsing the config file:\n\n{}\n\nFile: {}"
 

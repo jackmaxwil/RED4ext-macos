@@ -1,16 +1,43 @@
 #include "PluginSystem.hpp"
 #include "Addresses.hpp"
+#include "Config.hpp"
+#include "ESystemType.hpp"
 #include "Image.hpp"
+#include "Paths.hpp"
 #include "Platform/PluginRequirements.hpp"
+#include "PluginBase.hpp"
 #include "Utils.hpp"
 #include "Version.hpp"
-#include "v0/Plugin.hpp"
+#include "v1/Plugin.hpp"
 
-#define MINIMUM_API_VERSION RED4EXT_API_VERSION_0
-#define LATEST_API_VERSION RED4EXT_API_VERSION_LATEST
+#include <RED4ext/Api/ApiVersion.hpp>
+#include <RED4ext/Api/v1/EMainReason.hpp>
+#include <RED4ext/Api/v1/FileVer.hpp>
+#include <RED4ext/Api/v1/Runtime.hpp>
+#include <RED4ext/Api/v1/SemVer.hpp>
+#include <RED4ext/Api/v1/Version.hpp>
 
-#define MINIMUM_SDK_VERSION RED4EXT_SDK_0_5_0
-#define LATEST_SDK_VERSION RED4EXT_SDK_LATEST
+#include <fmt/format.h>
+#include <spdlog/spdlog.h>
+
+#ifndef RED4EXT_PLATFORM_MACOS
+#include <wil/resource.h>
+
+#include <Windows.h>
+#endif
+
+#include <cstdint>
+#include <exception>
+#include <filesystem>
+#include <memory>
+#include <system_error>
+#include <utility>
+#include <vector>
+
+#define MINIMUM_API_VERSION RED4EXT_API_VERSION_1_COMPAT_0
+#define MAXIMUM_API_VERSION RED4EXT_API_VERSION_1
+
+#define MINIMUM_SDK_VERSION RED4EXT_V1_SDK_VERSION_1_0_0_COMPAT_0_5_0
 
 #define LOG_FS_ERROR(text, ec)                                                                                         \
     auto val = ec.value();                                                                                             \
@@ -311,7 +338,7 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
     const auto image = Image::Get();
 
     const auto& requestedRuntime = plugin->GetRuntimeVersion();
-    if (requestedRuntime != RED4EXT_RUNTIME_INDEPENDENT)
+    if (requestedRuntime != RED4EXT_V1_RUNTIME_VERSION_INDEPENDENT)
     {
         // Check if the plugins is compiled for a supported version.
         bool isSupported = false;
@@ -330,7 +357,7 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
         {
             Log::warn(
                 L"{} (version: {}) is incompatible with the current patch. The requested runtime of the plugin is {}",
-                pluginName, std::to_wstring(pluginVersion), requestedRuntime);
+                pluginName, std::to_wstring(pluginVersion), std::to_wstring(requestedRuntime));
 
             m_incompatiblePlugins.emplace_back(pluginName);
             return;
@@ -338,20 +365,20 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
     }
 
     const auto& pluginSdk = plugin->GetSdkVersion();
-    if (pluginSdk < MINIMUM_SDK_VERSION || pluginSdk > LATEST_SDK_VERSION)
+    if (pluginSdk < MINIMUM_SDK_VERSION)
     {
         Log::warn(L"{} (version: {}) uses RED4ext.SDK v{} which is not supported by RED4ext v{}. If you are the "
                   L"plugin's author, recompile the plugin with a version of RED4ext.SDK that meets the following "
-                  L"criteria: RED4ext.SDK >= {} && RED4ext.SDK <= {}",
-                  pluginName, std::to_wstring(pluginVersion), std::to_wstring(pluginSdk), TEXT(RED4EXT_VERSION_STR),
-                  std::to_wstring(MINIMUM_SDK_VERSION), std::to_wstring(LATEST_SDK_VERSION));
+                  L"criteria: RED4ext.SDK >= {}",
+                  pluginName, std::to_wstring(pluginVersion), std::to_wstring(pluginSdk), Version::Get(),
+                  std::to_wstring(MINIMUM_SDK_VERSION));
         return;
     }
 
     auto module = plugin->GetModule();
     m_plugins.emplace(module, plugin);
 
-    if (!plugin->Main(RED4ext::EMainReason::Load))
+    if (!plugin->Main(RED4ext::v1::EMainReason::Load))
     {
         Log::warn(L"{} did not initialize properly, unloading...", pluginName);
         Unload(plugin);
@@ -365,7 +392,7 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
 
 PluginSystem::MapIter_t PluginSystem::Unload(std::shared_ptr<PluginBase> aPlugin)
 {
-    aPlugin->Main(RED4ext::EMainReason::Unload);
+    aPlugin->Main(RED4ext::v1::EMainReason::Unload);
 
     auto module = aPlugin->GetModule();
     auto iter = m_plugins.find(module);
@@ -420,7 +447,7 @@ std::shared_ptr<PluginBase> PluginSystem::CreatePlugin(const std::filesystem::pa
         return nullptr;
     }
 
-    if (apiVersion < MINIMUM_API_VERSION || apiVersion > LATEST_API_VERSION)
+    if (apiVersion < MINIMUM_API_VERSION || apiVersion > MAXIMUM_API_VERSION)
     {
         Log::warn(L"'{}' is using an unsupported API version. API version: {}, path: '{}'", stem, apiVersion, aPath);
         return nullptr;
@@ -428,9 +455,10 @@ std::shared_ptr<PluginBase> PluginSystem::CreatePlugin(const std::filesystem::pa
 
     switch (apiVersion)
     {
-    case RED4EXT_API_VERSION_0:
+    case RED4EXT_API_VERSION_1_COMPAT_0:
+    case RED4EXT_API_VERSION_1:
     {
-        return std::make_shared<v0::Plugin>(aPath, std::move(aModule));
+        return std::make_shared<v1::Plugin>(aPath, std::move(aModule));
     }
     }
 

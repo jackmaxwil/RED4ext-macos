@@ -1650,7 +1650,7 @@ const char* CoreHookName(uint32_t hash)
 {
     switch (hash)
     {
-    case Hashes::Main:
+    case Hashes::WinMain:
         return "Main";
     case Hashes::CGameApplication_AddState:
         return "CGameApplication_AddState";

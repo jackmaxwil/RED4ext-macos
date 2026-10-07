@@ -2,14 +2,29 @@
 #include "Platform.hpp"
 #include "Utils.hpp"
 
+#include <RED4ext/Api/v1/FileVer.hpp>
+#include <RED4ext/Api/v1/SemVer.hpp>
+#include <fmt/xchar.h>
+
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <CoreFoundation/CoreFoundation.h>
+#else
+#include <wil/win32_helpers.h>
+
+#include <Windows.h>
 #endif
+
+#include <cstdint>
+#include <memory>
+#include <new>
+#include <string>
+#include <string_view>
+#include <vector>
 
 Image::Image()
     : m_isCyberpunk(false)
-    , m_fileVersion(RED4EXT_V0_FILEVER(0, 0, 0, 0))
-    , m_productVersion(RED4EXT_V0_SEMVER(0, 0, 0))
+    , m_fileVersion(RED4EXT_V1_FILEVER(0, 0, 0, 0))
+    , m_productVersion(RED4EXT_V1_SEMVER(0, 0, 0))
 {
 #ifdef RED4EXT_PLATFORM_MACOS
     CFBundleRef bundle = CFBundleGetMainBundle();
@@ -44,8 +59,8 @@ Image::Image()
                 int major = 0, minor = 0, patch = 0;
                 if (sscanf(buffer, "%d.%d.%d", &major, &minor, &patch) >= 1)
                 {
-                    m_fileVersion = RED4EXT_FILEVER(major, minor, patch, 0);
-                    m_productVersion = RED4EXT_SEMVER(major, minor, patch);
+                    m_fileVersion = RED4EXT_V1_FILEVER(major, minor, patch, 0);
+                    m_productVersion = RED4EXT_V1_SEMVER(major, minor, patch);
                 }
             }
         }
@@ -142,7 +157,7 @@ Image::Image()
             uint16_t build = (fileInfo->dwFileVersionLS >> 16) & 0xFFFF;
             uint16_t revision = fileInfo->dwFileVersionLS & 0xFFFF;
 
-            m_fileVersion = RED4EXT_FILEVER(major, minor, build, revision);
+            m_fileVersion = RED4EXT_V1_FILEVER(major, minor, build, revision);
         }
 
         {
@@ -150,7 +165,7 @@ Image::Image()
             uint16_t minor = fileInfo->dwProductVersionMS & 0xFFFF;
             uint32_t patch = (fileInfo->dwProductVersionLS >> 16) & 0xFFFF;
 
-            m_productVersion = RED4EXT_SEMVER(major, minor, patch);
+            m_productVersion = RED4EXT_V1_SEMVER(major, minor, patch);
         }
     }
 #endif
@@ -181,17 +196,17 @@ bool Image::IsSupported() const
     return false;
 }
 
-const RED4ext::FileVer& Image::GetFileVersion() const
+const RED4ext::v1::FileVer& Image::GetFileVersion() const
 {
     return m_fileVersion;
 }
 
-const RED4ext::SemVer& Image::GetProductVersion() const
+const RED4ext::v1::SemVer& Image::GetProductVersion() const
 {
     return m_productVersion;
 }
 
-const std::vector<RED4ext::FileVer> Image::GetSupportedVersions() const
+const std::vector<RED4ext::v1::FileVer> Image::GetSupportedVersions() const
 {
     return {m_fileVersion};
 }

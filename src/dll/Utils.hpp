@@ -2,6 +2,22 @@
 
 #include "Platform.hpp"
 
+#include <RED4ext/GameStates.hpp>
+
+#include <fmt/format.h>
+#include <spdlog/logger.h>
+
+#ifndef RED4EXT_PLATFORM_MACOS
+#include <Windows.h>
+#endif
+
+#include <cstdint>
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+
 class Config;
 class DevConsole;
 class Paths;
@@ -80,23 +96,12 @@ template<typename Char>
 struct fmt::formatter<std::filesystem::path, Char> : formatter<basic_string_view<Char>, Char>
 {
     template<typename FormatContext>
-    auto format(const std::filesystem::path& path, FormatContext& ctx)
+    auto format(const std::filesystem::path& path, FormatContext& ctx) const
     {
         return formatter<basic_string_view<Char>, Char>::format(path.c_str(), ctx);
     }
 };
 #endif
-
-template<typename Char>
-struct fmt::formatter<RED4ext::FileVer, Char> : formatter<basic_string_view<Char>, Char>
-{
-    template<typename FormatContext>
-    auto format(const RED4ext::FileVer& aFileVersion, FormatContext& ctx)
-    {
-        return fmt::format_to(ctx.out(), "{}.{}.{}.{}", aFileVersion.major, aFileVersion.minor, aFileVersion.build,
-                              aFileVersion.revision);
-    }
-};
 
 #ifdef RED4EXT_PLATFORM_MACOS
 // On macOS, use simple logging instead of message boxes
@@ -116,7 +121,7 @@ struct fmt::formatter<RED4ext::FileVer, Char> : formatter<basic_string_view<Char
 
 #ifndef SHOW_LAST_ERROR_MESSAGE_FILE_LINE
 #define SHOW_LAST_ERROR_MESSAGE_FILE_LINE(additionalText, ...)                                                         \
-    Utils::ShowLastErrorMessage(MB_ICONWARNING | MB_OK, additionalText L"\n\n{}:{}", __VA_ARGS__, TEXT(__FILE__),      \
+    Utils::ShowLastErrorMessage(MB_ICONWARNING | MB_OK, additionalText L"\n\n{}:{}", ##__VA_ARGS__, TEXT(__FILE__),    \
                                 __LINE__)
 #endif
 
@@ -124,19 +129,19 @@ struct fmt::formatter<RED4ext::FileVer, Char> : formatter<basic_string_view<Char
 #define SHOW_LAST_ERROR_MESSAGE_AND_EXIT_FILE_LINE(additionalText, ...)                                                \
     Utils::ShowLastErrorMessage(                                                                                       \
         MB_ICONERROR | MB_OK, additionalText L"\n\n{}:{}\n\nThe game will close now to prevent unexpected behavior.",  \
-        __VA_ARGS__, TEXT(__FILE__), __LINE__);                                                                        \
+        ##__VA_ARGS__, TEXT(__FILE__), __LINE__);                                                                      \
     Platform::TerminateProcess()
 #endif
 
 #ifndef SHOW_MESSAGE_BOX_FILE_LINE
 #define SHOW_MESSAGE_BOX_FILE_LINE(type, msg, ...)                                                                     \
-    Utils::ShowMessageBox(type, msg L"\n\n{}:{}", __VA_ARGS__, TEXT(__FILE__), __LINE__)
+    Utils::ShowMessageBox(type, msg L"\n\n{}:{}", ##__VA_ARGS__, TEXT(__FILE__), __LINE__)
 #endif
 
 #ifndef SHOW_MESSAGE_BOX_AND_EXIT_FILE_LINE
 #define SHOW_MESSAGE_BOX_AND_EXIT_FILE_LINE(msg, ...)                                                                  \
     Utils::ShowMessageBox(MB_ICONERROR | MB_OK,                                                                        \
-                          msg L"\n\n{}:{}\n\nThe game will close now to prevent unexpected behavior.", __VA_ARGS__,    \
+                          msg L"\n\n{}:{}\n\nThe game will close now to prevent unexpected behavior.", ##__VA_ARGS__,  \
                           TEXT(__FILE__), __LINE__);                                                                   \
     Platform::TerminateProcess()
 #endif
