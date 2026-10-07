@@ -4,6 +4,24 @@ All notable changes to the RED4ext macOS port.
 
 ## [Unreleased]
 
+## [0.1.0-rc2] - 2026-10-07
+
+Tested in game: RED4ext with ModMenu, TweakXL and ArchiveXL loaded together. All TweakXL checks (6) and ArchiveXL checks (8) pass, and the game exits cleanly.
+
+- **ArchiveXL 1.26.1 (macOS) is ported to the arm64 ABI:**
+  - x8 struct returns, argument fixes, and virtual slots shifted by +8;
+  - inlined game functions replaced;
+  - the macOS layouts of the classes it uses;
+  - RedLib registration;
+  - static game objects are kept, not released, at exit.
+- **SDK:**
+  - `CGameEngine::framework` is at +0x338 on macOS;
+  - TransactionSystem `MatchVisualTag` slot order and ItemID-by-value signatures;
+  - macOS layouts for 1,503 generated classes, from the live RTTI dump;
+  - the address table now outlives static destructors.
+- **Loader:** hooks attach from their final storage. The hook engine used to keep a pointer to a temporary, so detaching failed and changes to a hook chain wrote through a dangling address.
+- **Launcher:** passes Steam's app ID when Steam is running, so the game's Steam features work (saves, achievements).
+
 ## [0.1.0-rc1] - 2026-10-07
 
 Tested in game on Cyberpunk 2077 2.3.1 (Steam, UUID A6656ADC), Apple silicon: main menu, TweakXL and ModMenu loaded together, and all autotest checks pass (`tools/cp-run tweakxl`).
