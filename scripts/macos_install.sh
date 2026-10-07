@@ -192,23 +192,6 @@ install_files() {
         return 1
     fi
 
-    # Generate symbol mappings if needed
-    local symbols_file="$bin_dir/cyberpunk2077_symbols.json"
-    if [[ ! -f "$symbols_file" ]]; then
-        local game_binary="$game_dir/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077"
-        if [[ -f "$game_binary" ]] && [[ -f "$SCRIPT_DIR/generate_symbol_mapping.py" ]]; then
-            log_info "Generating symbol mappings (this may take a minute)..."
-            python3 "$SCRIPT_DIR/generate_symbol_mapping.py" "$game_binary" \
-                --output "$symbols_file" 2>/dev/null || log_warn "Could not generate symbols"
-        fi
-    fi
-    
-    if [[ -f "$symbols_file" ]]; then
-        log_success "Symbol mappings ready"
-    else
-        log_warn "Symbol mappings not found - some features may not work"
-    fi
-    
     # Install launcher script
     local launcher="$game_dir/launch_red4ext.sh"
     cp -f "$RED4EXT_ROOT/scripts/launch_red4ext.sh" "$launcher"

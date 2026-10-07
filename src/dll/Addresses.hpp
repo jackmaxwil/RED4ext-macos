@@ -19,7 +19,6 @@ public:
     std::uintptr_t Resolve(std::uint32_t aHash) const;
     const std::string& GetDatabaseGameVersion() const;
     const std::string& GetDatabaseUuid() const;
-    const std::string& SymbolForHash(std::uint32_t aHash) const;
 
     // DB hashes among aConstants that do not resolve (unverified or zero offset).
     std::vector<std::uint32_t> UnresolvedAmong(const std::unordered_set<std::uint32_t>& aConstants) const;
@@ -29,13 +28,11 @@ private:
 
     void LoadAddresses(const std::filesystem::path& aPath);
     void LoadSections();
-    void LoadSymbols(const std::filesystem::path& aSymbolsPath);
 
     std::uintptr_t m_codeOffset;
     std::uintptr_t m_dataOffset;
     std::uintptr_t m_rdataOffset;
     std::unordered_map<std::uint32_t, std::uintptr_t> m_addresses;
-    std::unordered_map<std::uint32_t, std::string> m_hashToSymbol;
     std::string m_dbGameVersion;
     std::string m_dbUuid;
 };

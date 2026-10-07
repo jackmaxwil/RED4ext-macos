@@ -56,18 +56,8 @@ public:
         if (m_hash != 0)
         {
             const char* friendly = NativeHook::CoreHookName(m_hash);
-            std::string symbol;
-            if (Addresses::Instance() != nullptr)
-            {
-                symbol = Addresses::Instance()->SymbolForHash(m_hash);
-            }
-
             char hashName[32];
             const char* name = friendly;
-            if (name == nullptr && !symbol.empty())
-            {
-                name = symbol.c_str();
-            }
 
             if (name == nullptr)
             {
