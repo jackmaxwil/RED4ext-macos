@@ -1,5 +1,6 @@
 #include "App.hpp"
 #include "Addresses.hpp"
+#include "Detail/AddressHashes.hpp"
 #include "DetourTransaction.hpp"
 #include "Image.hpp"
 #include "Platform.hpp"
@@ -355,9 +356,16 @@ bool App::AttachHooks() const
 
     // On macOS, attach hooks individually and continue even if some fail.
     
+    // A core hook is attempted only when its address is verified and, if the user set an allowlist, it is listed.
     const auto& allow = m_config.GetHooking().coreHooks;
-    auto enabled = [&allow](const char* aName)
+    const auto addresses = Addresses::Instance();
+    auto enabled = [&allow, addresses](const char* aName, std::uint32_t aHash)
     {
+        if (!addresses || !addresses->UnresolvedAmong({aHash}).empty())
+        {
+            Log::debug("Skipping core hook {}: its address is not verified", aName);
+            return false;
+        }
         return allow.empty() || std::find(allow.begin(), allow.end(), aName) != allow.end();
     };
 
@@ -368,56 +376,56 @@ bool App::AttachHooks() const
     if (Hooks::Main::Attach()) successCount++;
     else Log::error("main() hook failed - plugins will not be loaded");
 
-    if (enabled("CGameApplication_AddState"))
+    if (enabled("CGameApplication_AddState", Hashes::CGameApplication_AddState))
     {
         totalHooks++;
         if (Hooks::CGameApplication::Attach()) successCount++;
         else Log::warn("CGameApplication hook failed - state management may be limited");
     }
 
-    if (enabled("Global_ExecuteProcess"))
+    if (enabled("Global_ExecuteProcess", Hashes::Global_ExecuteProcess))
     {
         totalHooks++;
         if (Hooks::ExecuteProcess::Attach()) successCount++;
         else Log::warn("ExecuteProcess hook failed - script compilation redirection unavailable");
     }
 
-    if (enabled("CBaseEngine_InitScripts"))
+    if (enabled("CBaseEngine_InitScripts", Hashes::CBaseEngine_InitScripts))
     {
         totalHooks++;
         if (Hooks::InitScripts::Attach()) successCount++;
         else Log::warn("InitScripts hook failed - script initialization hooks unavailable");
     }
 
-    if (enabled("CBaseEngine_LoadScripts"))
+    if (enabled("CBaseEngine_LoadScripts", Hashes::CBaseEngine_LoadScripts))
     {
         totalHooks++;
         if (Hooks::LoadScripts::Attach()) successCount++;
         else Log::warn("LoadScripts hook failed - script loading hooks unavailable");
     }
 
-    if (enabled("ScriptValidator_Validate"))
+    if (enabled("ScriptValidator_Validate", Hashes::ScriptValidator_Validate))
     {
         totalHooks++;
         if (Hooks::ValidateScripts::Attach()) successCount++;
         else Log::warn("ValidateScripts hook failed - script validation hooks unavailable");
     }
 
-    if (enabled("AssertionFailed"))
+    if (enabled("AssertionFailed", Hashes::AssertionFailed))
     {
         totalHooks++;
         if (Hooks::AssertionFailed::Attach()) successCount++;
         else Log::warn("AssertionFailed hook failed - assertion logging unavailable");
     }
 
-    if (enabled("GameInstance_CollectSaveableSystems"))
+    if (enabled("GameInstance_CollectSaveableSystems", Hashes::GameInstance_CollectSaveableSystems))
     {
         totalHooks++;
         if (Hooks::CollectSaveableSystems::Attach()) successCount++;
         else Log::warn("CollectSaveableSystems hook failed - save system hooks unavailable");
     }
 
-    if (enabled("GsmState_SessionActive_ReportErrorCode"))
+    if (enabled("GsmState_SessionActive_ReportErrorCode", Hashes::GsmState_SessionActive_ReportErrorCode))
     {
         totalHooks++;
         if (Hooks::gsmState_SessionActive::Attach()) successCount++;

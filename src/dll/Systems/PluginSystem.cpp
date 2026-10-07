@@ -155,8 +155,10 @@ void PluginSystem::Startup()
         Load(pluginInfo.path, pluginInfo.useAlteredSearchPath);
     }
 
+#ifndef RED4EXT_PLATFORM_MACOS
     // In the case where the exe is hosted, check if the host exe has RED4Ext exports
     Load(m_paths.GetExe(), false);
+#endif
 
     Log::info("{} plugin(s) loaded", m_plugins.size());
 }

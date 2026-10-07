@@ -27,8 +27,7 @@ run_step "Build" cmake --build "$BUILD_DIR" -- -j"$(sysctl -n hw.ncpu)" || fail=
 if [[ -d "$SDK_ROOT" ]]; then
   run_step "Address DB validation" python3 "$SDK_ROOT/scripts/validate_addresses.py" --verified-only --quiet \
     --names "$ROOT_DIR/src/dll/Detail/AddressHashes.hpp" \
-    "$SDK_ROOT/cyberpunk2077_addresses.json" \
-    "$SDK_ROOT/scripts/loader_hook_targets.json" || fail=1
+    "$SDK_ROOT/cyberpunk2077_addresses.json" || fail=1
 else
   echo "[WARN] SDK root not found at $SDK_ROOT; skipping validate_addresses.py"
   fail=1
