@@ -46,6 +46,17 @@ Logs are in `red4ext/logs/` and in each plugin's folder. A plugin that RED4ext r
 
 TweakXL reloads `r6/tweaks` when you press `\` (backslash) in game, and shows "TweakXL: tweaks reloaded". Changed and added records apply at once. Objects that already copied a record, such as an equipped item or a spawned NPC, pick up the change when they are created again.
 
+## Installing mods
+
+Put each kind of mod where it would go on Windows, inside the game folder:
+
+| Mod files | Folder | Needs |
+| --- | --- | --- |
+| `.archive` (and `.archive.xl`) | `archive/pc/mod/` | ArchiveXL. The macOS game does not read this folder itself; ArchiveXL loads it. |
+| `.yaml` / `.tweak` tweaks | `r6/tweaks/` | TweakXL |
+| `.reds` scripts | `r6/scripts/` | Nothing. The launcher compiles them. |
+| RED4ext plugins (`.dylib`) | `red4ext/plugins/<Name>/` | A macOS build of the plugin. Windows `.dll` plugins do not work. |
+
 ## After a game update
 
 A game patch changes the binary. RED4ext then refuses to hook anything, and the game runs unmodded, until a release for the new build is out. Do not edit the address database by hand.

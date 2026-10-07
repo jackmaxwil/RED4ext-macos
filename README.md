@@ -38,6 +38,17 @@ The Steam **Play** button starts the game **without** mods. Always use `launch_r
 
 In game: press `` ` `` (the key left of 1) or F10 for ModMenu. Press `\` to reload TweakXL tweaks from `r6/tweaks`.
 
+## Installing mods
+
+Put each kind of mod where it would go on Windows, inside the game folder:
+
+| Mod files | Folder | Needs |
+| --- | --- | --- |
+| `.archive` (and `.archive.xl`) | `archive/pc/mod/` | ArchiveXL. The macOS game does not read this folder itself; ArchiveXL loads it. |
+| `.yaml` / `.tweak` tweaks | `r6/tweaks/` | TweakXL |
+| `.reds` scripts | `r6/scripts/` | Nothing. The launcher compiles them. |
+| RED4ext plugins (`.dylib`) | `red4ext/plugins/<Name>/` | A macOS build of the plugin. Windows `.dll` plugins do not work. |
+
 ## Uninstall
 
 1. Steam > Cyberpunk 2077 > Properties > Installed Files > **Verify integrity of game files**. This restores the
