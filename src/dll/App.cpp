@@ -392,33 +392,71 @@ bool App::AttachHooks() const
 
     // On macOS, attach hooks individually and continue even if some fail.
     
+    const auto& allow = m_config.GetHooking().coreHooks;
+    auto enabled = [&allow](const char* aName)
+    {
+        return allow.empty() || std::find(allow.begin(), allow.end(), aName) != allow.end();
+    };
+
     int successCount = 0;
-    int totalHooks = 8;
-    
-    if (Hooks::CGameApplication::Attach()) successCount++; 
-    else Log::warn("CGameApplication hook failed - state management may be limited");
-    
-    if (Hooks::ExecuteProcess::Attach()) successCount++;
-    else Log::warn("ExecuteProcess hook failed - script compilation redirection unavailable");
-    
-    if (Hooks::InitScripts::Attach()) successCount++;
-    else Log::warn("InitScripts hook failed - script initialization hooks unavailable");
-    
-    if (Hooks::LoadScripts::Attach()) successCount++;
-    else Log::warn("LoadScripts hook failed - script loading hooks unavailable");
-    
-    if (Hooks::ValidateScripts::Attach()) successCount++;
-    else Log::warn("ValidateScripts hook failed - script validation hooks unavailable");
-    
-    if (Hooks::AssertionFailed::Attach()) successCount++;
-    else Log::warn("AssertionFailed hook failed - assertion logging unavailable");
-    
-    if (Hooks::CollectSaveableSystems::Attach()) successCount++;
-    else Log::warn("CollectSaveableSystems hook failed - save system hooks unavailable");
-    
-    if (Hooks::gsmState_SessionActive::Attach()) successCount++;
-    else Log::warn("gsmState_SessionActive hook failed - session state hooks unavailable");
-    
+    int totalHooks = 0;
+
+    if (enabled("CGameApplication_AddState"))
+    {
+        totalHooks++;
+        if (Hooks::CGameApplication::Attach()) successCount++;
+        else Log::warn("CGameApplication hook failed - state management may be limited");
+    }
+
+    if (enabled("Global_ExecuteProcess"))
+    {
+        totalHooks++;
+        if (Hooks::ExecuteProcess::Attach()) successCount++;
+        else Log::warn("ExecuteProcess hook failed - script compilation redirection unavailable");
+    }
+
+    if (enabled("CBaseEngine_InitScripts"))
+    {
+        totalHooks++;
+        if (Hooks::InitScripts::Attach()) successCount++;
+        else Log::warn("InitScripts hook failed - script initialization hooks unavailable");
+    }
+
+    if (enabled("CBaseEngine_LoadScripts"))
+    {
+        totalHooks++;
+        if (Hooks::LoadScripts::Attach()) successCount++;
+        else Log::warn("LoadScripts hook failed - script loading hooks unavailable");
+    }
+
+    if (enabled("ScriptValidator_Validate"))
+    {
+        totalHooks++;
+        if (Hooks::ValidateScripts::Attach()) successCount++;
+        else Log::warn("ValidateScripts hook failed - script validation hooks unavailable");
+    }
+
+    if (enabled("AssertionFailed"))
+    {
+        totalHooks++;
+        if (Hooks::AssertionFailed::Attach()) successCount++;
+        else Log::warn("AssertionFailed hook failed - assertion logging unavailable");
+    }
+
+    if (enabled("GameInstance_CollectSaveableSystems"))
+    {
+        totalHooks++;
+        if (Hooks::CollectSaveableSystems::Attach()) successCount++;
+        else Log::warn("CollectSaveableSystems hook failed - save system hooks unavailable");
+    }
+
+    if (enabled("GsmState_SessionActive_ReportErrorCode"))
+    {
+        totalHooks++;
+        if (Hooks::gsmState_SessionActive::Attach()) successCount++;
+        else Log::warn("gsmState_SessionActive hook failed - session state hooks unavailable");
+    }
+
     Log::info("Attached {}/{} hooks successfully", successCount, totalHooks);
 
     const bool committed = transaction.Commit();

@@ -53,6 +53,9 @@ public:
 
         void LoadV0(const toml::value& aConfig);
 
+        // Core loader hooks to attach, by hash name (e.g. "CGameApplication_AddState"). Empty = all.
+        std::vector<std::string> coreHooks;
+
 #ifdef RED4EXT_PLATFORM_MACOS
         Backend backend = Backend::NativeInline;
 #else

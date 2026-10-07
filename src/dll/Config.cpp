@@ -235,6 +235,7 @@ void Config::PluginsConfig::LoadV0(const toml::value& aConfig)
 void Config::HookingConfig::LoadV0(const toml::value& aConfig)
 {
     const auto backendStr = toml::find_or(aConfig, "hooking", "backend", std::string{});
+    coreHooks = toml::find_or(aConfig, "hooking", "core_hooks", std::vector<std::string>{});
 
     if (backendStr == "native_inline")
     {
