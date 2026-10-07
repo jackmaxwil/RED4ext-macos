@@ -67,14 +67,6 @@ if(WIN32)
   include(ConfigureAndIncludeWil)
 elseif(APPLE)
   include(ConfigureAndIncludeFishhook)
-
-  option(RED4EXT_USE_FRIDA_GADGET "Use Frida Gadget-backed hooks on macOS (no native code patching)." ON)
-
-  option(RED4EXT_USE_FRIDA_GUM "Enable embedded frida-gum hooking backend on macOS (conflicts with external FridaGadget.dylib)." OFF)
-  if(RED4EXT_USE_FRIDA_GUM)
-    include(ConfigureAndIncludeFridaGumDevkit)
-    add_compile_definitions(RED4EXT_USE_FRIDA_GUM)
-  endif()
 endif()
 
 option(RED4EXT_EXTRA_WARNINGS "Enable extra warnings." ON)

@@ -122,13 +122,6 @@ else
     check_warn "Python not installed (needed for address regeneration)"
 fi
 
-# xz (for Frida download)
-if command -v xz &>/dev/null; then
-    check_pass "xz available (for Frida download)"
-else
-    check_warn "xz not installed"
-    echo "       Install: brew install xz"
-fi
 
 # curl
 if command -v curl &>/dev/null; then

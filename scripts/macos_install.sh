@@ -9,7 +9,6 @@
 # Options:
 #   --game-dir PATH    Path to Cyberpunk 2077 directory
 #   --build            Build RED4ext from source first
-#   --skip-frida       Don't install Frida Gadget
 #   --help             Show this help
 #
 
@@ -21,7 +20,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RED4EXT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-FRIDA_VERSION="17.5.2"
 
 # Default game directory
 DEFAULT_GAME_DIR="$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077"
@@ -57,7 +55,6 @@ print_usage() {
     echo "Options:"
     echo "  --game-dir PATH    Path to Cyberpunk 2077 directory"
     echo "  --build            Build RED4ext from source first"
-    echo "  --skip-frida       Don't install Frida Gadget"
     echo "  --help             Show this help"
     echo ""
     echo "Default game directory:"
@@ -152,35 +149,8 @@ build_red4ext() {
     log_success "Build complete"
 }
 
-download_frida_gadget() {
-    local dest_dir="$1"
-    local gadget_path="$dest_dir/FridaGadget.dylib"
-    
-    if [[ -f "$gadget_path" ]]; then
-        log_info "Frida Gadget already installed"
-        return 0
-    fi
-    
-    log_info "Downloading Frida Gadget v${FRIDA_VERSION}..."
-    
-    local url="https://github.com/frida/frida/releases/download/${FRIDA_VERSION}/frida-gadget-${FRIDA_VERSION}-macos-universal.dylib.xz"
-    local temp_file
-    temp_file=$(mktemp)
-    
-    curl -fsSL -o "${temp_file}.xz" "$url"
-    xz -d -c "${temp_file}.xz" > "$gadget_path"
-    rm -f "${temp_file}.xz"
-    
-    # Sign the gadget
-    log_info "Signing Frida Gadget..."
-    codesign -s - "$gadget_path" 2>/dev/null || log_warn "Could not sign gadget"
-    
-    log_success "Frida Gadget installed"
-}
-
 install_files() {
     local game_dir="$1"
-    local skip_frida="$2"
     local red4ext_dir="$game_dir/red4ext"
     local bin_dir="$red4ext_dir/bin/x64"
     
@@ -202,16 +172,9 @@ install_files() {
         exit 1
     fi
     
-    # Install Frida Gadget
-    if [[ "$skip_frida" != "true" ]]; then
-        download_frida_gadget "$red4ext_dir"
-        
-        # Install Frida config and hooks
-        cp -f "$SCRIPT_DIR/frida/FridaGadget.config" "$red4ext_dir/"
-        cp -f "$SCRIPT_DIR/frida/red4ext_hooks.js" "$red4ext_dir/"
-        log_success "Installed Frida configuration"
-    fi
-    
+    # Remove leftovers from the Frida-based setup
+    rm -f "$red4ext_dir/FridaGadget.dylib" "$red4ext_dir/FridaGadget.config" "$red4ext_dir/red4ext_hooks.js"
+
     # Install the single canonical address database (from the SDK submodule) and drop stale copies.
     local sdk_db="$SCRIPT_DIR/../deps/red4ext.sdk/cyberpunk2077_addresses.json"
     rm -f "$red4ext_dir/cyberpunk2077_addresses.json" "$bin_dir/cyberpunk2077_addresses.loader.json"
@@ -253,9 +216,6 @@ GAME_BINARY="$SCRIPT_DIR/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077"
 
 echo "=== RED4ext macOS Launcher ==="
 
-# Build injection list
-INJECT_LIBS="$RED4EXT_DIR/RED4ext.dylib"
-[[ -f "$RED4EXT_DIR/FridaGadget.dylib" ]] && INJECT_LIBS="$INJECT_LIBS:$RED4EXT_DIR/FridaGadget.dylib"
 
 # Compile REDscript
 [[ -x "$SCRIPT_DIR/engine/tools/scc" ]] && "$SCRIPT_DIR/engine/tools/scc" -compile "$SCRIPT_DIR/r6/scripts" 2>&1 || true
@@ -264,8 +224,7 @@ INJECT_LIBS="$RED4EXT_DIR/RED4ext.dylib"
 [[ -x "$SCRIPT_DIR/engine/tools/inputloader.pl" ]] && "$SCRIPT_DIR/engine/tools/inputloader.pl" 2>&1 || true
 
 echo "Launching with RED4ext..."
-export DYLD_INSERT_LIBRARIES="$INJECT_LIBS"
-export DYLD_FORCE_FLAT_NAMESPACE=1
+export DYLD_INSERT_LIBRARIES="$RED4EXT_DIR/RED4ext.dylib"
 exec "$GAME_BINARY" "$@"
 LAUNCHER_EOF
     chmod +x "$launcher"
@@ -321,7 +280,6 @@ print_summary() {
 main() {
     local game_dir=""
     local do_build=false
-    local skip_frida=false
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -332,10 +290,6 @@ main() {
                 ;;
             --build)
                 do_build=true
-                shift
-                ;;
-            --skip-frida)
-                skip_frida=true
                 shift
                 ;;
             --help|-h)
@@ -367,7 +321,7 @@ main() {
     fi
     
     # Install files
-    install_files "$game_dir" "$skip_frida"
+    install_files "$game_dir"
     create_config "$game_dir/red4ext"
     
     print_summary "$game_dir"

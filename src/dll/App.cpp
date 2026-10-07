@@ -76,25 +76,6 @@ bool RunNativeHookSelfTest()
 }
 #endif
 
-#ifdef RED4EXT_PLATFORM_MACOS
-bool ParseSemVer(const std::string& aValue, RED4ext::SemVer& aOut)
-{
-    unsigned major = 0;
-    unsigned minor = 0;
-    unsigned patch = 0;
-
-    const int count = std::sscanf(aValue.c_str(), "%u.%u.%u", &major, &minor, &patch);
-    if (count < 1)
-    {
-        return false;
-    }
-
-    aOut.major = static_cast<uint16_t>(major);
-    aOut.minor = static_cast<uint16_t>(minor);
-    aOut.patch = static_cast<uint16_t>(patch);
-    return true;
-}
-#endif
 }
 
 App::App()
@@ -190,7 +171,6 @@ App::App()
     Addresses::Construct(m_paths);
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    if (m_config.GetHooking().backend == Config::HookingConfig::Backend::NativeInline)
     {
         char imageUuid[80]{};
         NativeHook::MainImageUuid(imageUuid, sizeof(imageUuid));
@@ -211,32 +191,6 @@ App::App()
         {
             Log::error("{}", line);
             return;
-        }
-    }
-    else if (auto* addresses = Addresses::Instance())
-    {
-        const auto& dbVersionStr = addresses->GetDatabaseGameVersion();
-        if (!dbVersionStr.empty())
-        {
-            RED4ext::SemVer dbVersion{};
-            if (ParseSemVer(dbVersionStr, dbVersion))
-            {
-                if (dbVersion.major != productVer.major || dbVersion.minor != productVer.minor ||
-                    dbVersion.patch != productVer.patch)
-                {
-                    Log::warn("Address DB version ({}) does not match runtime version ({}.{}.{})", dbVersionStr,
-                              productVer.major, productVer.minor, productVer.patch);
-                    if (m_config.GetDev().strictVersionCheck)
-                    {
-                        Log::error("strict_version_check=true and version mismatch detected; aborting initialization");
-                        return;
-                    }
-                }
-            }
-            else
-            {
-                Log::warn("Could not parse address DB game_version '{}'", dbVersionStr);
-            }
         }
     }
 #endif
@@ -373,15 +327,10 @@ bool App::AttachHooks() const
     Log::trace("Attaching hooks...");
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    DetourSetBackend(static_cast<int32_t>(m_config.GetHooking().backend));
-
-    if (m_config.GetHooking().backend == Config::HookingConfig::Backend::NativeInline)
+    if (!RunNativeHookSelfTest())
     {
-        if (!RunNativeHookSelfTest())
-        {
-            Log::error("Native hook engine self-test failed; not installing game hooks");
-            return false;
-        }
+        Log::error("Native hook engine self-test failed; not installing game hooks");
+        return false;
     }
 
     DetourTransaction transaction;
@@ -460,7 +409,7 @@ bool App::AttachHooks() const
     Log::info("Attached {}/{} hooks successfully", successCount, totalHooks);
 
     const bool committed = transaction.Commit();
-    if (committed && m_config.GetHooking().backend == Config::HookingConfig::Backend::NativeInline)
+    if (committed)
     {
         char imageUuid[80]{};
         NativeHook::MainImageUuid(imageUuid, sizeof(imageUuid));

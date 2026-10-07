@@ -37,12 +37,7 @@ echo "Packaging release..."
 # Copy main dylib
 cp "$BUILD_DIR/libs/RED4ext.dylib" "$RELEASE_DIR/$RELEASE_NAME/red4ext/"
 
-# Copy Frida config and hooks (FridaGadget.dylib is downloaded by installer)
-cp "$SCRIPT_DIR/frida/FridaGadget.config" "$RELEASE_DIR/$RELEASE_NAME/red4ext/" 2>/dev/null || true
-cp "$SCRIPT_DIR/frida/red4ext_hooks.js" "$RELEASE_DIR/$RELEASE_NAME/red4ext/" 2>/dev/null || true
 
-# Note about FridaGadget
-echo "Note: FridaGadget.dylib is downloaded during installation (not included in release)"
 
 # Copy address database
 cp "$SCRIPT_DIR/cyberpunk2077_addresses.json" "$RELEASE_DIR/$RELEASE_NAME/red4ext/"
@@ -53,7 +48,6 @@ cp "$SCRIPT_DIR/check_requirements.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
 cp "$SCRIPT_DIR/macos_resign_for_hooks.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
 cp "$SCRIPT_DIR/macos_resign_backup.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
 cp "$SCRIPT_DIR/macos_resign_restore.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-cp "$SCRIPT_DIR/setup_frida_gadget.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
 cp "$SCRIPT_DIR/generate_addresses.py" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
 cp "$SCRIPT_DIR/manual_addresses_template.json" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
 
@@ -83,9 +77,8 @@ cd scripts
 This will:
 1. Detect your Cyberpunk 2077 installation
 2. Copy RED4ext files to the game directory
-3. Download and install Frida Gadget (~50MB)
-4. Create the `launch_red4ext.sh` script
-5. Set up plugin directories
+3. Create the `launch_red4ext.sh` script
+4. Set up plugin directories
 
 ## Launching the Game
 

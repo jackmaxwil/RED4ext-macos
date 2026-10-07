@@ -7,7 +7,7 @@
 
 // Native arm64 hook engine. A 4-byte B in the target reaches a near island.
 // The island holds the absolute jump. Trampolines and islands are anonymous
-// pages allocated within ±128 MiB. No MAP_JIT and no Frida.
+// pages allocated within ±128 MiB. No MAP_JIT.
 
 namespace NativeHook
 {

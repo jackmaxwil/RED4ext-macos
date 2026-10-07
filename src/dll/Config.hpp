@@ -44,23 +44,10 @@ public:
 
     struct HookingConfig
     {
-        enum class Backend : int32_t
-        {
-            FridaGadget = 0,
-            NativeInline = 1,
-            FridaGum = 2,
-        };
-
         void LoadV0(const toml::value& aConfig);
 
         // Core loader hooks to attach, by hash name (e.g. "CGameApplication_AddState"). Empty = all.
         std::vector<std::string> coreHooks;
-
-#ifdef RED4EXT_PLATFORM_MACOS
-        Backend backend = Backend::NativeInline;
-#else
-        Backend backend = Backend::FridaGadget;
-#endif
     };
 
     Config(const Paths& aPaths);

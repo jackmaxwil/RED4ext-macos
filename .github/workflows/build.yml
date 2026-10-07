@@ -108,7 +108,7 @@ jobs:
           submodules: recursive
 
       - name: Configure
-        run: cmake -S . -B build-native-hooks -DCMAKE_BUILD_TYPE=Release -DRED4EXT_USE_FRIDA_GUM=OFF
+        run: cmake -S . -B build-native-hooks -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build-native-hooks -j --target native_hook_tests RED4ext.Dll

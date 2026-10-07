@@ -113,12 +113,7 @@ void Config::Save(const std::filesystem::path& aFile)
                                    {"max_file_size", m_logging.maxFileSize}}},
 
             {"plugins", value_type{{"enabled", m_plugins.isEnabled}, {"ignored", std::vector<std::string>{}}}},
-            {"hooking",
-             value_type{{"backend",
-                         m_hooking.backend == HookingConfig::Backend::NativeInline
-                             ? "native_inline"
-                             : (m_hooking.backend == HookingConfig::Backend::FridaGum ? "frida_gum"
-                                                                                     : "frida_gadget")}}},
+            {"hooking", value_type{{"core_hooks", std::vector<std::string>{}}}},
             {"dev",
              value_type{{"console", m_dev.hasConsole},
                         {"wait_for_debugger", m_dev.waitForDebugger},
@@ -159,7 +154,8 @@ void Config::LoadV0(const toml::value& aConfig)
 
     if (!strictSpecified)
     {
-        m_dev.strictVersionCheck = m_hooking.backend == HookingConfig::Backend::NativeInline;
+        // Native code patching must only happen against the image the address DB was built for.
+        m_dev.strictVersionCheck = true;
     }
 #endif
 }
@@ -234,31 +230,5 @@ void Config::PluginsConfig::LoadV0(const toml::value& aConfig)
 
 void Config::HookingConfig::LoadV0(const toml::value& aConfig)
 {
-    const auto backendStr = toml::find_or(aConfig, "hooking", "backend", std::string{});
     coreHooks = toml::find_or(aConfig, "hooking", "core_hooks", std::vector<std::string>{});
-
-    if (backendStr == "native_inline")
-    {
-        backend = Backend::NativeInline;
-    }
-    else if (backendStr == "frida_gum")
-    {
-        backend = Backend::FridaGum;
-    }
-    else if (backendStr == "frida_gadget")
-    {
-        backend = Backend::FridaGadget;
-    }
-    else if (backendStr.empty())
-    {
-#ifdef RED4EXT_PLATFORM_MACOS
-        backend = Backend::NativeInline;
-#else
-        backend = Backend::FridaGadget;
-#endif
-    }
-    else
-    {
-        backend = Backend::FridaGadget;
-    }
 }
