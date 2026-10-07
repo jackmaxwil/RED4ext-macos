@@ -150,6 +150,12 @@ if [[ "$PLUGINS_ENABLED" == true && "$SCENARIO" != rttidump ]]; then
     IFS=, read -ra enabled <<<"$CP_PLUGINS"
     for name in "${enabled[@]}"; do
         [[ -d "$R4E_DIR/plugins/$name/Scripts" ]] || continue
+        # Same gate as the launcher: a refused plugin's script natives would stop the game at script init.
+        if ! "$R4E_DIR/bin/red4ext_plugin_check" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.json" \
+            "$R4E_DIR/plugins/$name/"*.dylib >/dev/null 2>&1; then
+            say "not compiling $name's scripts: the loader will refuse it"
+            continue
+        fi
         mkdir -p "$STAGE" && cp -R "$R4E_DIR/plugins/$name/Scripts" "$STAGE/$name"
     done
 fi

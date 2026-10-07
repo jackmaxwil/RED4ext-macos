@@ -30,6 +30,7 @@ build "$ROOT" "$BUILD"
 mkdir -p "$R4E_DIR/bin/x64" "$R4E_DIR/plugins"
 install -m 755 "$BUILD/libs/RED4ext.dylib" "$R4E_DIR/RED4ext.dylib"
 "$ROOT/scripts/codesign_macos.sh" dylib "$R4E_DIR/RED4ext.dylib"
+install -m 755 "$BUILD/bin/red4ext_plugin_check" "$R4E_DIR/bin/red4ext_plugin_check"
 cp "$ROOT/deps/red4ext.sdk/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.json"
 rm -f "$R4E_DIR/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.loader.json"
 
