@@ -2,6 +2,41 @@
 
 All notable changes to the RED4ext macOS port.
 
+## [0.1.0-rc1] - 2026-10-07
+
+Tested in game on Cyberpunk 2077 2.3.1 (Steam, UUID A6656ADC), Apple silicon: main menu, TweakXL and ModMenu loaded together, and all autotest checks pass (`tools/cp-run tweakxl`).
+
+### Loader
+- The native arm64 hook engine supports near (4-byte `B`) and far (12-byte `ADRP`/`ADD`/`BR x17`) patches. It refuses any target it cannot relocate exactly.
+- Fail-closed address resolution: only DB entries with `"verified": true` resolve. The evidence for each entry is in `RED4ext.SDK/docs/ADDRESS_AUDIT.md` and `docs/re/`.
+- The loader refuses any plugin that uses an unverified address. `red4ext_plugin_check` applies the same gate before launch.
+- Core hooks are attempted only when their address is verified. The script-pipeline hooks are not needed on macOS, because `scc` compiles scripts before launch. AssertionFailed, CollectSaveableSystems and SessionActive stay off until a plugin needs them.
+- Plugins are never `dlclose`d, and hooks stay installed until the process exits.
+- `RED4EXT_DUMP_RTTI=1` writes the live class layouts (`logs/rtti_layout_macos.json`).
+
+### SDK (macOS ABI)
+- Fixed the SharedSpinLock encoding (writer bit 0x80).
+- Functions that return through x8 now declare it: `JobQueue::Capture`, `ISerializable::sub_78`/`sub_B0`/`sub_C8`, and others.
+- `Handle(T*)` is inlined, because the game has no out-of-line copy.
+- `CClassFunction` construction now takes a member-function pointer.
+- Removed heuristic TLS discovery.
+- Fixed `FlatValue::GetTypeName`.
+
+### Plugins
+- **TweakXL 1.11.3 (macOS):**
+  - verified addresses and the arm64 signatures for stats ranges;
+  - RedLib type registration, which needed explicit template instantiation under clang;
+  - clang enum names;
+  - the game root path inside the `.app`;
+  - fail-closed guards.
+- **ModMenu 0.1.0:** native bridge plus an F10 binding in `r6/input/modmenu.xml`.
+- **ArchiveXL:** not included yet (its macOS ABI port is in progress).
+
+### Tooling
+- `launch_red4ext.sh` compiles only the scripts of plugins RED4ext will load, and refuses to start on a compile error. It cleans up on exit, so a later Steam launch stays vanilla.
+- `install_macos.sh` checks the game build, backs up the binary and re-signs it.
+- `tools/cp-gate` is the offline patch-day and release gate.
+
 ## [Unreleased]
 
 - Replaced the Frida Gadget backend with a native in-process arm64 hook engine (`src/dll/Platform/NativeHook*`).
