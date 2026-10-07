@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include "Paths.hpp"
 
@@ -18,6 +20,9 @@ public:
     const std::string& GetDatabaseGameVersion() const;
     const std::string& GetDatabaseUuid() const;
     const std::string& SymbolForHash(std::uint32_t aHash) const;
+
+    // DB hashes among aConstants that do not resolve (unverified or zero offset).
+    std::vector<std::uint32_t> UnresolvedAmong(const std::unordered_set<std::uint32_t>& aConstants) const;
 
 private:
     Addresses(const Paths& aPaths);

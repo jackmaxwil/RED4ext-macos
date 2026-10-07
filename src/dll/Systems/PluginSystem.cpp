@@ -1,4 +1,6 @@
 #include "PluginSystem.hpp"
+#include "Addresses.hpp"
+#include "Platform/PluginRequirements.hpp"
 #include "Image.hpp"
 #include "Utils.hpp"
 #include "Version.hpp"
@@ -230,6 +232,30 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
             // For now, just use RTLD_GLOBAL
         }
         
+        // Fail closed: a plugin is loaded only if every address-DB hash compiled into it resolves. A plugin that
+        // starts with some of its addresses missing fails half-way and can take the game down with it.
+        const auto constants = PluginRequirements::CollectConstants(aPath);
+        if (!constants)
+        {
+            Log::warn(L"Not loading plugin '{}': could not read it as a 64-bit Mach-O", stem);
+            return;
+        }
+        if (const auto addresses = Addresses::Instance())
+        {
+            const auto missing = addresses->UnresolvedAmong(*constants);
+            if (!missing.empty())
+            {
+                std::string list;
+                for (const auto hash : missing)
+                {
+                    list += fmt::format("{}{}", list.empty() ? "" : ", ", hash);
+                }
+                Log::warn(L"Not loading plugin '{}': {} of the game addresses it uses are not verified ({})", stem,
+                          missing.size(), Utils::Widen(list));
+                return;
+            }
+        }
+
         std::string pathStr = aPath.string();
         void* h = dlopen(pathStr.c_str(), flags);
         if (!h)

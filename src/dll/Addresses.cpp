@@ -521,3 +521,17 @@ RED4EXT_C_EXPORT std::uintptr_t RED4EXT_CALL RED4ext_ResolveAddress(const std::u
 {
     return Addresses::Instance()->Resolve(aHash);
 }
+
+std::vector<std::uint32_t> Addresses::UnresolvedAmong(const std::unordered_set<std::uint32_t>& aConstants) const
+{
+    std::vector<std::uint32_t> unresolved;
+    for (const auto& [hash, address] : m_addresses)
+    {
+        if (address == 0 && aConstants.contains(hash))
+        {
+            unresolved.push_back(hash);
+        }
+    }
+    std::sort(unresolved.begin(), unresolved.end());
+    return unresolved;
+}
