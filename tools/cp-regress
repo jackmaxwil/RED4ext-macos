@@ -1,0 +1,46 @@
+#!/bin/bash
+# Release regression: the offline gate, then every in-game scenario with the plugins it needs, in the background
+# (tools/cp-run never takes focus, the keyboard or the mouse). Prints one line per step and exits non-zero if any fails.
+#
+#   tools/cp-regress            # run everything (about 10 minutes)
+#   tools/cp-regress tweakxl    # only the scenarios whose name contains "tweakxl"
+#
+# Install the builds to test first (tools/cp-dev <scenario> --plugins ... builds, signs and installs them).
+set -uo pipefail
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FILTER=${1:-}
+
+# scenario:plugins
+SCENARIOS="tweakxl:TweakXL archivexl:ArchiveXL modmenu:ModMenu tweakxl-reload:TweakXL
+modmenu-ui:ModMenu,TweakXL,ArchiveXL load:ModMenu,TweakXL,ArchiveXL"
+
+results=()
+fail=0
+
+if [[ -z "$FILTER" ]]; then
+    if "$TOOLS_DIR/cp-gate" >/tmp/cp-regress-gate.$$ 2>&1; then
+        results+=("PASS  gate")
+    else
+        results+=("FAIL  gate (see output below)"); fail=1; tail -20 /tmp/cp-regress-gate.$$
+    fi
+    rm -f /tmp/cp-regress-gate.$$
+fi
+
+for entry in $SCENARIOS; do
+    scenario=${entry%%:*}
+    plugins=${entry#*:}
+    [[ -z "$FILTER" || "$scenario" == *"$FILTER"* ]] || continue
+    echo "[cp-regress] $scenario ($plugins)"
+    line=$(CP_PLUGINS="$plugins" "$TOOLS_DIR/cp-run" "$scenario" 2>&1 | grep -E '^\[cp-run\] (PASS|FAIL|PRECONDITION)' | tail -1)
+    if [[ "$line" == *"] PASS "* ]]; then
+        results+=("PASS  $scenario  ${line##* -> }")
+    else
+        results+=("FAIL  $scenario  ${line:-no verdict}"); fail=1
+    fi
+done
+
+echo
+printf '%s\n' "${results[@]}"
+[[ $fail -eq 0 ]] && echo "cp-regress: all passed" || echo "cp-regress: FAILED"
+exit $fail

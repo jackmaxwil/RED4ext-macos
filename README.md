@@ -98,6 +98,9 @@ tools/cp-dev tweakxl --plugins TweakXL,ArchiveXL,ModMenu
 Results go to `runs/<timestamp>-<scenario>/`. Exit code 0 means pass. `tools/cp-rollback` restores the stock game
 binary.
 
+`tools/cp-regress` runs the gate and every scenario with the plugins it needs (about 10 minutes, all in the
+background) and prints a pass/fail table. Run it before every release.
+
 `tools/cp-gate` is the offline release and patch-day gate. It never starts the game. It checks that the installed game
 matches the address database, that the verified entries validate, and that every address each plugin uses is verified.
 After a game update, follow the patch-day steps in its header.
