@@ -9,7 +9,8 @@ All notable changes to the RED4ext macOS port.
 Tested with `tools/cp-regress` (gate plus every in-game scenario: TweakXL, ArchiveXL, ModMenu, ModMenu UI, TweakXL hot reload, loading a save).
 
 - **Mods in `archive/pc/mod` now load.** The macOS game never reads that folder; ArchiveXL now loads it (in name order), together with the mods' `.archive.xl` files. Tested with 73 mod archives in the world.
-- **ModMenu:** the overlay is clickable (the game shows its cursor and routes input to the menu while it is open); `` ` ``, Esc or the Close button closes it; toggles work; entries match their types.
+- **ModMenu:** no longer logs every key press; the overlay is clickable (the game shows its cursor and routes input to the menu while it is open); `` ` ``, Esc or the Close button closes it; toggles work; entries match their types.
+- **ArchiveXL's packed resources are included** (`ArchiveXL.archive`, from upstream's 1.26.1 release with a pinned checksum), so its character-customization fixes load instead of logging "not ready" errors.
 - **TweakXL hot reload:** press `\` in game to reload `r6/tweaks`.
 - **Key bindings from `r6/input` now take effect.** The launcher merged them from the wrong folder, so they were silently ignored.
 - **Launcher:** stops with a clear message when Steam replaced the game binary (run `install_macos.sh` again) or updated the game (wait for a release).
