@@ -204,7 +204,7 @@ NEXT_START_PRESS=$START
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
     if [[ -f "$LOGS_DIR/autotest.log" ]] &&
-        awk '/WORLD_READY/{f=1} /"event":"DONE"/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log"; then
+        awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/WORLD_READY/{f=1} /"event":"DONE"/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log"; then
         OUTCOME=results
         # CP_WORLD_HOLD=N keeps the game running N more seconds (e.g. so the in-world HUD is built), with a screenshot
         # before and after; CP_KEYCODE=<macOS virtual key code> presses that key in the game window in between
@@ -227,7 +227,7 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
     # The boot loading screen, the start screen and the load screen after a save all wait on "PRESS ... TO CONTINUE".
     # Press Space every 5 s from 8 s in until the player is in the world (WORLD_READY; then Space would jump).
     if [[ -z "$START_ARGS" && $START_PRESSES -lt 40 && $now -ge $NEXT_START_PRESS && $((now - START)) -ge 8 ]] &&
-        ! grep -q WORLD_READY "$LOGS_DIR/autotest.log" 2>/dev/null; then
+        ! awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/WORLD_READY/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log" 2>/dev/null; then
         press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 5))
     fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
