@@ -5,8 +5,11 @@
 #   scripts/create_release.sh VERSION
 #
 # Builds everything in Release mode and runs tools/cp-gate on the built plugins. Nothing is packaged unless the gate
-# passes. Writes release/RED4ext-macOS-arm64-VERSION.zip. Layout (unzip over the game folder):
+# passes. On a machine without the game (CI), CP_GATE_NO_GAME=1 skips only the gate's installed-game check.
+# Writes the release assets: release/RED4ext-macOS-arm64-VERSION.zip, release/install.sh and release/SHA256SUMS.
+# Zip layout (its top-level folder's contents go into the game folder):
 #   launch_red4ext.sh
+#   red4ext/VERSION, red4ext/BUILD_INFO.json     (version, build date, commit of every component)
 #   red4ext/RED4ext.dylib, red4ext/bin/red4ext_plugin_check, red4ext/bin/x64/cyberpunk2077_addresses.json
 #   red4ext/plugins/<Plugin>/...
 #   r6/input/*.xml                              (plugin input bindings)
@@ -77,6 +80,28 @@ codesign -f -s - "$R4E/bin/red4ext_plugin_check"
 "$R4E/bin/red4ext_plugin_check" "$R4E/bin/x64/cyberpunk2077_addresses.json" "$R4E/plugins/"*/*.dylib
 
 cp "$ROOT/docs/INSTALL_MACOS.md" "$STAGE/INSTALL_MACOS.md"
+
+# Traceability: the commit of every repo that went into this build (-dirty if it had uncommitted changes).
+rev() { echo "$(git -C "$1" rev-parse HEAD)$(git -C "$1" diff --quiet HEAD || echo -dirty)"; }
+echo "$VERSION" >"$R4E/VERSION"
+cat >"$R4E/BUILD_INFO.json" <<JSON
+{
+  "version": "$VERSION",
+  "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "game_uuid": "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["uuid"])' "$WS/RED4ext.SDK/cyberpunk2077_addresses.json")",
+  "commits": {
+    "RED4ext": "$(rev "$ROOT")",
+    "RED4ext.SDK": "$(rev "$WS/RED4ext.SDK")",
+    "cp2077-tweak-xl": "$(rev "$WS/cp2077-tweak-xl")",
+    "cp2077-archive-xl-macos": "$(rev "$WS/cp2077-archive-xl-macos")",
+    "cp2077-modmenu": "$(rev "$WS/cp2077-modmenu")"
+  },
+  "archivexl_upstream_archive": "$(sed -n 's/^VERSION=//p' "$WS/cp2077-archive-xl-macos/tools/fetch-bundle-archive.sh")"
+}
+JSON
+python3 -m json.tool "$R4E/BUILD_INFO.json" >/dev/null
+
 (cd "$OUT" && rm -f "$NAME.zip" && ditto -c -k --norsrc --noextattr --noqtn --keepParent "$NAME" "$NAME.zip")
-shasum -a 256 "$OUT/$NAME.zip" | tee "$OUT/$NAME.zip.sha256"
-echo "[release] wrote $OUT/$NAME.zip"
+install -m 755 "$ROOT/install.sh" "$OUT/install.sh"
+(cd "$OUT" && shasum -a 256 "$NAME.zip" install.sh | tee SHA256SUMS)
+echo "[release] wrote $OUT/$NAME.zip, install.sh, SHA256SUMS"

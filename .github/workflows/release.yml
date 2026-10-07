@@ -1,0 +1,128 @@
+name: Release
+
+# Pushing a tag vX.Y.Z or vX.Y.Z-rcN builds the release on a runner and publishes it (a version with a "-" is a
+# prerelease). The notes are the CHANGELOG.md section "## [X.Y.Z]", which must exist.
+# workflow_dispatch builds any version; with dry_run it only uploads the assets to the run and publishes nothing.
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without the leading v, e.g. 0.1.0-rc4
+        required: true
+      dry_run:
+        description: Build and upload the assets to this run only (no GitHub release)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build and publish (macOS arm64)
+    runs-on: macos-latest
+    env:
+      INPUT_VERSION: ${{ inputs.version }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - name: Version
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then v=${GITHUB_REF_NAME#v}; else v=${INPUT_VERSION#v}; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::Not a version: '$v'"; exit 1; }
+          echo "VERSION=$v" >>"$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: RED4ext
+          submodules: recursive
+
+      # The workspace layout the release tools expect: every component next to RED4ext, at main.
+      - name: Clone components
+        run: |
+          for spec in RED4ext.SDK-macos:RED4ext.SDK cp2077-tweak-xl-macos:cp2077-tweak-xl \
+              cp2077-archive-xl-macos:cp2077-archive-xl-macos cp2077-modmenu:cp2077-modmenu; do
+            git clone -q --recursive "https://github.com/jackmaxwil/${spec%%:*}.git" "${spec#*:}"
+          done
+
+      - name: Dependencies
+        run: brew install spdlog yaml-cpp
+
+      # No game on the runner: the gate skips only its installed-game check.
+      - name: Build, gate and package
+        env:
+          CP_GATE_NO_GAME: 1
+        run: RED4ext/scripts/create_release.sh "$VERSION"
+
+      - name: Check assets
+        working-directory: RED4ext/release
+        run: |
+          shasum -a 256 -c SHA256SUMS
+          zip="RED4ext-macOS-arm64-$VERSION.zip"
+          [[ "$(unzip -p "$zip" "RED4ext-macOS-arm64-$VERSION/red4ext/VERSION")" == "$VERSION" ]]
+          unzip -p "$zip" "RED4ext-macOS-arm64-$VERSION/red4ext/BUILD_INFO.json" | python3 -m json.tool
+          bash -n install.sh
+
+      - name: Release notes
+        working-directory: RED4ext
+        run: |
+          awk -v h="## [$VERSION]" 'index($0, h) == 1 { f = 1; next } f && /^## \[/ { exit } f' CHANGELOG.md >body.md
+          if ! grep -q '[^[:space:]]' body.md; then
+            if [[ "$DRY_RUN" != true ]]; then
+              echo "::error::CHANGELOG.md has no '## [$VERSION]' section. Add it, then tag again."
+              exit 1
+            fi
+            echo "::warning::CHANGELOG.md has no '## [$VERSION]' section (dry run: using a placeholder)."
+            echo "Dry run: no CHANGELOG section for $VERSION." >body.md
+          fi
+          fence='```'
+          url=https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/install.sh
+          {
+            cat body.md
+            echo
+            echo "## Install"
+            echo
+            echo "Cyberpunk 2077 2.3.1 (Steam) on an Apple silicon Mac. Quit the game, then run in Terminal:"
+            echo
+            echo "${fence}bash"
+            echo "curl -fsSL $url | bash"
+            echo "$fence"
+            echo
+            echo "That installs the newest release. For exactly this one: \`curl -fsSL $url | bash -s -- --version $VERSION\`."
+            echo "Manual install: [INSTALL_MACOS.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/INSTALL_MACOS.md)."
+            echo
+            echo "## SHA-256"
+            echo
+            echo "$fence"
+            cat release/SHA256SUMS
+            echo "$fence"
+          } >release/notes.md
+          cat release/notes.md
+
+      - name: Upload assets to the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: RED4ext-macOS-arm64-${{ env.VERSION }}
+          path: |
+            RED4ext/release/RED4ext-macOS-arm64-${{ env.VERSION }}.zip
+            RED4ext/release/install.sh
+            RED4ext/release/SHA256SUMS
+            RED4ext/release/notes.md
+
+      - name: Publish release
+        if: env.DRY_RUN != 'true'
+        working-directory: RED4ext/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then flags+=(--verify-tag); else flags+=(--target "$GITHUB_SHA"); fi
+          gh release create "v$VERSION" "RED4ext-macOS-arm64-$VERSION.zip" install.sh SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --title "RED4ext for macOS $VERSION" --notes-file notes.md "${flags[@]}"
