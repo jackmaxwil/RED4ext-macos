@@ -2,6 +2,7 @@
 
 #ifdef RED4EXT_PLATFORM_MACOS
 
+#include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <fishhook.h>
 
@@ -63,6 +64,13 @@ void* Replace(const char* aClass, const char* aSelector, void* aImp)
 
 void IgnoreNotification(void*, void*, void*)
 {
+}
+
+// Logged so a test run that became frontmost can be traced: if no "blocked" line from the game precedes it, the
+// activation came from outside (a click on the window, the Dock, Cmd-Tab).
+void OnAppBecameActive(CFNotificationCenterRef, void*, CFNotificationName, const void*, CFDictionaryRef)
+{
+    spdlog::warn("Background mode: the app became active (activated from outside the game)");
 }
 
 signed char AlwaysFocused(void*, void*)
@@ -160,6 +168,11 @@ void EnableBackgroundModeIfRequested()
     // Same for the app losing focus (e.g. a click into the window and back out): the game's handler tells the engine
     // focus was lost, after which the in-game test steps stopped running.
     Replace("GameApplicationDelegate", "appDidLoseFocus:", reinterpret_cast<void*>(&IgnoreNotification));
+
+    // The local center is NSNotificationCenter's default center.
+    CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(), nullptr, &OnAppBecameActive,
+                                    CFSTR("NSApplicationDidBecomeActiveNotification"), nullptr,
+                                    CFNotificationSuspensionBehaviorDeliverImmediately);
     g_sendEvent = reinterpret_cast<SendEventFn>(
         Replace("NSApplication", "sendEvent:", reinterpret_cast<void*>(&SendEventToGameView)));
 }
