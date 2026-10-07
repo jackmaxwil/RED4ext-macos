@@ -96,7 +96,10 @@ bool HookingSystem::Attach(std::shared_ptr<PluginBase> aPlugin, void* aTarget, v
     std::scoped_lock _(m_mutex);
 
     DetourTransaction transaction;
-    Item item(aTarget, aDetour, aOriginal);
+    // The hook engine keeps the address of item.hook's original-pointer slot and writes through it when the hook
+    // chain changes, so the item must already be at its final, stable address (a node of m_hooks) when it attaches.
+    auto stored = m_hooks.emplace(aPlugin, Item(aTarget, aDetour, aOriginal));
+    auto& item = stored->second;
 
 #ifdef RED4EXT_PLATFORM_MACOS
     const auto owner = Utils::Narrow(aPlugin->GetName());
@@ -122,6 +125,7 @@ bool HookingSystem::Attach(std::shared_ptr<PluginBase> aPlugin, void* aTarget, v
     {
         Log::warn(L"The hook requested by '{}' at {} could not be attached. Detour error code: {}",
                      aPlugin->GetName(), aTarget, result);
+        m_hooks.erase(stored);
         return false;
     }
 
@@ -132,13 +136,12 @@ bool HookingSystem::Attach(std::shared_ptr<PluginBase> aPlugin, void* aTarget, v
             *aOriginal = reinterpret_cast<void*>(item.hook.GetAddress());
         }
 
-        m_hooks.emplace(aPlugin, std::move(item));
-
         Log::trace(L"The hook requested by '{}' at {} has been successfully attached", aPlugin->GetName(), aTarget);
         return true;
     }
 
     Log::warn(L"The hook requested by '{}' at {} was not attached", aPlugin->GetName(), aTarget);
+    m_hooks.erase(stored);
     return false;
 }
 
