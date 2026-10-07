@@ -34,10 +34,10 @@ install -m 755 "$BUILD/bin/red4ext_plugin_check" "$R4E_DIR/bin/red4ext_plugin_ch
 cp "$ROOT/deps/red4ext.sdk/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.json"
 rm -f "$R4E_DIR/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.loader.json"
 
-# name:repo:built dylib:script dir (or -):data dir installed as the plugin's Data/ (or -)
-PLUGIN_TABLE="ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib:-:- TweakXL:cp2077-tweak-xl:TweakXL.dylib:scripts:data ModMenu:cp2077-modmenu:libModMenu.dylib:scripts/Scripts/ModMenu:-"
+# name:repo:built dylib:script dir (or -):data dir installed as the plugin's Data/ (or -)[:bundle dirs installed as Bundle/]
+PLUGIN_TABLE="ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib:scripts:-:bundle/source/resources+bundle/packed/archive/pc/mod TweakXL:cp2077-tweak-xl:TweakXL.dylib:scripts:data ModMenu:cp2077-modmenu:libModMenu.dylib:scripts/Scripts/ModMenu:-"
 for entry in $PLUGIN_TABLE; do
-    IFS=: read -r name repo lib scripts data <<<"$entry"
+    IFS=: read -r name repo lib scripts data bundle <<<"$entry"
     [[ ",$PLUGINS," == *",$name,"* ]] || continue
     echo "[cp-dev] building $name"
     build "$WS/$repo" "$WS/$repo/build-dev"
@@ -57,6 +57,18 @@ for entry in $PLUGIN_TABLE; do
     if [[ "$data" != - ]]; then
         rm -rf "$R4E_DIR/plugins/$name/Data"
         cp -R "$WS/$repo/$data" "$R4E_DIR/plugins/$name/Data"
+    fi
+    # Bundle (ArchiveXL): the release puts the .xl resources and the packed .archive files flat in plugins/<name>/Bundle.
+    # Sources are '+'-separated; a missing one (e.g. the WolvenKit-packed archive) is skipped.
+    if [[ "${bundle:--}" != - ]]; then
+        rm -rf "$R4E_DIR/plugins/$name/Bundle"
+        mkdir -p "$R4E_DIR/plugins/$name/Bundle"
+        IFS=+ read -r -a bundle_dirs <<<"$bundle"
+        for dir in "${bundle_dirs[@]}"; do
+            if [[ -d "$WS/$repo/$dir" ]]; then
+                cp -R "$WS/$repo/$dir/." "$R4E_DIR/plugins/$name/Bundle/"
+            fi
+        done
     fi
 done
 export CP_PLUGINS="${CP_PLUGINS:-$PLUGINS}"

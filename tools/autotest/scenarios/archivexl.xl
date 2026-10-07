@@ -1,0 +1,7 @@
+# Optional input for the archivexl scenario. cp-run does not install .xl files yet; to use it, copy it to
+# <game>/archive/pc/mod/cp_autotest.xl for the run and remove it afterwards (as cp-run does with <scenario>.yaml).
+# It needs no packed .archive. ArchiveXL should log that it loaded this file without issues; the redscript checks in
+# archivexl.reds must still pass with it installed (GetBodyType(null) keeps returning BaseBody).
+player:
+  bodyTypes:
+    - CpAutotestBody
