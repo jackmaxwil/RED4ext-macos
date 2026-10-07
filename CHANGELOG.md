@@ -4,6 +4,12 @@ All notable changes to the RED4ext macOS port.
 
 ## [Unreleased]
 
+## [0.1.0-rc5] - 2026-10-07
+
+- **Fix: TweakXL and ArchiveXL did not load on most Macs.** rc1 to rc4 linked Homebrew's spdlog, fmt and yaml-cpp, which players don't have; the game then stopped at start. They are now built in. Releases are refused if any binary links a library outside macOS.
+- **Safer launch:** `red4ext_plugin_check` refuses a plugin whose libraries are missing, so the launcher skips its scripts and the game starts without it instead of stopping.
+- **Setup:** `install_macos.sh` no longer re-signs a binary that is already set up (re-signing needs macOS's App Management permission), and says how to grant that permission when it is needed.
+
 ## [0.1.0-rc4] - 2026-10-07
 
 - **One-command install:** `curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash` downloads the newest release, checks its checksum and the game build, installs it and runs the one-time setup. The same script updates, uninstalls, checks an install (`doctor`) and starts the game (`play`). Releases are built on GitHub Actions and carry `red4ext/VERSION` and `red4ext/BUILD_INFO.json` (the commit of every component).

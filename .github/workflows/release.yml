@@ -51,8 +51,6 @@ jobs:
             git clone -q --recursive "https://github.com/jackmaxwil/${spec%%:*}.git" "${spec#*:}"
           done
 
-      - name: Dependencies
-        run: brew install spdlog yaml-cpp
 
       # No game on the runner: the gate skips only its installed-game check.
       - name: Build, gate and package

@@ -77,6 +77,15 @@ cp -R "$WS/cp2077-modmenu/scripts/r6/." "$STAGE/r6/"
 "$ROOT/scripts/codesign_macos.sh" dylib "$R4E/RED4ext.dylib" "$R4E/plugins/TweakXL/TweakXL.dylib" \
     "$R4E/plugins/ModMenu/ModMenu.dylib" "$R4E/plugins/ArchiveXL/ArchiveXL.dylib"
 codesign -f -s - "$R4E/bin/red4ext_plugin_check"
+
+# Players' Macs have only the system libraries: refuse any binary that links something else (e.g. from Homebrew).
+for bin in "$R4E/RED4ext.dylib" "$R4E/bin/red4ext_plugin_check" "$R4E/plugins/"*/*.dylib; do
+    id=$(otool -D "$bin" 2>/dev/null | tail -n +2)
+    foreign=$(otool -L "$bin" | tail -n +2 | awk '{ print $1 }' | grep -v -e '^/usr/lib/' -e '^/System/' | grep -vxF "${id:-none}" || true)
+    if [[ -n "$foreign" ]]; then
+        echo "[release] $bin links libraries players don't have:"; echo "$foreign"; exit 1
+    fi
+done
 "$R4E/bin/red4ext_plugin_check" "$R4E/bin/x64/cyberpunk2077_addresses.json" "$R4E/plugins/"*/*.dylib
 
 cp "$ROOT/docs/INSTALL_MACOS.md" "$STAGE/INSTALL_MACOS.md"
