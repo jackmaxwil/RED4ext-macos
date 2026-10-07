@@ -3,7 +3,7 @@
 	url = https://github.com/gabime/spdlog.git
 [submodule "deps/red4ext.sdk"]
 	path = deps/red4ext.sdk
-	url = https://github.com/memaxo/RED4ext.SDK-macos.git
+	url = https://github.com/jackmaxwil/RED4ext.SDK-macos.git
 [submodule "deps/detours"]
 	path = deps/detours
 	url = https://github.com/microsoft/Detours.git

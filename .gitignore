@@ -380,3 +380,8 @@ scripts/*.log
 release/
 .DS_Store
 .cursor/
+
+# macOS port
+build-macos*/
+scripts/re_tools/**/*.json
+scripts/re_tools/nativedb_data/
