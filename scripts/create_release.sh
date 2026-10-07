@@ -1,164 +1,69 @@
 #!/bin/bash
+# Builds the macOS release zip: RED4ext, the plugins that pass the offline gate, the canonical address DB, the
+# launcher and the signing helper.
 #
-# RED4ext macOS Release Packager
-# Creates a distributable release archive
+#   scripts/create_release.sh VERSION
 #
+# Builds everything in Release mode and runs tools/cp-gate on the built plugins. Nothing is packaged unless the gate
+# passes. Writes release/RED4ext-macOS-arm64-VERSION.zip. Layout (unzip over the game folder):
+#   launch_red4ext.sh
+#   red4ext/RED4ext.dylib, red4ext/bin/red4ext_plugin_check, red4ext/bin/x64/cyberpunk2077_addresses.json
+#   red4ext/plugins/<Plugin>/...
+#   r6/input/*.xml                              (plugin input bindings)
+#   red4ext/macos/scripts/install_macos.sh      (backs up and re-signs the game binary)
+set -euo pipefail
 
-set -e
+VERSION=${1:?usage: create_release.sh VERSION}
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WS="$ROOT/.."
+OUT="$ROOT/release"
+NAME="RED4ext-macOS-arm64-$VERSION"
+STAGE="$OUT/$NAME"
 
-VERSION="${1:-1.0.0}"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_DIR/build"
-RELEASE_DIR="$PROJECT_DIR/release"
-RELEASE_NAME="RED4ext-macOS-ARM64-v${VERSION}"
+build() { # <source dir> <build dir>
+    cmake -S "$1" -B "$2" -DCMAKE_BUILD_TYPE=Release >/dev/null
+    cmake --build "$2" -j "$(sysctl -n hw.ncpu)" >"$2.log" 2>&1 || { tail -20 "$2.log"; exit 1; }
+}
 
-echo "=== RED4ext macOS Release Builder ==="
-echo "Version: $VERSION"
-echo ""
+echo "[release] building"
+build "$ROOT" "$ROOT/build-release"
+build "$WS/cp2077-tweak-xl" "$WS/cp2077-tweak-xl/build-release"
+build "$WS/cp2077-modmenu" "$WS/cp2077-modmenu/build-release"
 
-# Build if needed
-if [ ! -f "$BUILD_DIR/libs/RED4ext.dylib" ]; then
-    echo "Building RED4ext..."
-    cd "$BUILD_DIR"
-    cmake .. -DCMAKE_BUILD_TYPE=Release
-    make -j$(sysctl -n hw.ncpu)
-fi
+TWEAKXL="$WS/cp2077-tweak-xl/build-release/TweakXL.dylib"
+MODMENU="$WS/cp2077-modmenu/build-release/libModMenu.dylib"
 
-# Create release directory
-rm -rf "$RELEASE_DIR/$RELEASE_NAME"
-mkdir -p "$RELEASE_DIR/$RELEASE_NAME"
-mkdir -p "$RELEASE_DIR/$RELEASE_NAME/red4ext"
-mkdir -p "$RELEASE_DIR/$RELEASE_NAME/red4ext/plugins"
-mkdir -p "$RELEASE_DIR/$RELEASE_NAME/scripts"
+echo "[release] offline gate"
+CP2077_GATE_CHECK="$ROOT/build-release/bin/red4ext_plugin_check" \
+    "$ROOT/tools/cp-gate" "$TWEAKXL:$WS/cp2077-tweak-xl/src" "$MODMENU:$WS/cp2077-modmenu/src"
 
-echo "Packaging release..."
+echo "[release] staging $NAME"
+rm -rf "$STAGE"
+R4E="$STAGE/red4ext"
+mkdir -p "$R4E/bin/x64" "$R4E/plugins/TweakXL" "$R4E/plugins/ModMenu" "$R4E/macos/scripts" "$STAGE/r6"
 
-# Copy main dylib
-cp "$BUILD_DIR/libs/RED4ext.dylib" "$RELEASE_DIR/$RELEASE_NAME/red4ext/"
+install -m 755 "$ROOT/build-release/libs/RED4ext.dylib" "$R4E/RED4ext.dylib"
+install -m 755 "$ROOT/build-release/bin/red4ext_plugin_check" "$R4E/bin/red4ext_plugin_check"
+cp "$WS/RED4ext.SDK/cyberpunk2077_addresses.json" "$R4E/bin/x64/"
+install -m 755 "$ROOT/scripts/launch_red4ext.sh" "$STAGE/launch_red4ext.sh"
+install -m 755 "$ROOT/scripts/codesign_macos.sh" "$R4E/macos/scripts/codesign_macos.sh"
+cp "$ROOT/scripts/red4ext_entitlements.plist" "$R4E/macos/scripts/"
+install -m 755 "$ROOT/scripts/install_macos.sh" "$R4E/macos/scripts/install_macos.sh"
 
+install -m 755 "$TWEAKXL" "$R4E/plugins/TweakXL/TweakXL.dylib"
+cp -R "$WS/cp2077-tweak-xl/scripts" "$R4E/plugins/TweakXL/Scripts"
+cp -R "$WS/cp2077-tweak-xl/data" "$R4E/plugins/TweakXL/Data"
 
+install -m 755 "$MODMENU" "$R4E/plugins/ModMenu/ModMenu.dylib"
+cp -R "$WS/cp2077-modmenu/scripts/Scripts/ModMenu" "$R4E/plugins/ModMenu/Scripts"
+cp -R "$WS/cp2077-modmenu/scripts/r6/." "$STAGE/r6/"
 
-# Copy address database
-cp "$SCRIPT_DIR/cyberpunk2077_addresses.json" "$RELEASE_DIR/$RELEASE_NAME/red4ext/"
+"$ROOT/scripts/codesign_macos.sh" dylib "$R4E/RED4ext.dylib" "$R4E/plugins/TweakXL/TweakXL.dylib" \
+    "$R4E/plugins/ModMenu/ModMenu.dylib"
+codesign -f -s - "$R4E/bin/red4ext_plugin_check"
+"$R4E/bin/red4ext_plugin_check" "$R4E/bin/x64/cyberpunk2077_addresses.json" "$R4E/plugins/"*/*.dylib
 
-# Copy essential scripts
-cp "$SCRIPT_DIR/macos_install.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-cp "$SCRIPT_DIR/check_requirements.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-cp "$SCRIPT_DIR/macos_resign_for_hooks.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-cp "$SCRIPT_DIR/macos_resign_backup.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-cp "$SCRIPT_DIR/macos_resign_restore.sh" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-cp "$SCRIPT_DIR/generate_addresses.py" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-cp "$SCRIPT_DIR/manual_addresses_template.json" "$RELEASE_DIR/$RELEASE_NAME/scripts/"
-
-# Copy documentation
-cp "$PROJECT_DIR/README.md" "$RELEASE_DIR/$RELEASE_NAME/"
-cp "$PROJECT_DIR/LICENSE.md" "$RELEASE_DIR/$RELEASE_NAME/"
-cp "$PROJECT_DIR/THIRD_PARTY_LICENSES.md" "$RELEASE_DIR/$RELEASE_NAME/"
-cp -r "$PROJECT_DIR/docs" "$RELEASE_DIR/$RELEASE_NAME/"
-
-# Create installation instructions
-cat > "$RELEASE_DIR/$RELEASE_NAME/INSTALL.md" << 'EOF'
-# RED4ext macOS Installation Guide
-
-## Prerequisites
-
-- Cyberpunk 2077 installed via Steam on macOS
-- macOS 12+ on Apple Silicon (M1/M2/M3/M4)
-- Xcode Command Line Tools: `xcode-select --install`
-
-## Quick Install
-
-```bash
-cd scripts
-./macos_install.sh
-```
-
-This will:
-1. Detect your Cyberpunk 2077 installation
-2. Copy RED4ext files to the game directory
-3. Create the `launch_red4ext.sh` script
-4. Set up plugin directories
-
-## Launching the Game
-
-### Option 1: Launch Script (Recommended)
-
-```bash
-cd "$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077"
-./launch_red4ext.sh
-```
-
-Or with full path:
-```bash
-"$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/launch_red4ext.sh"
-```
-
-### Option 2: Launch via Steam
-
-Launch normally from Steam. Mods load automatically.
-
-## Verify Installation
-
-After launching, check that mods loaded:
-
-```bash
-# View RED4ext log
-cat "$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/red4ext/logs/red4ext.log"
-```
-
-You should see:
-```
-[RED4ext] Initializing...
-[RED4ext] Loading plugins...
-```
-
-## Installing Plugins
-
-Place .dylib plugins in:
-```
-Cyberpunk 2077/red4ext/plugins/PluginName/PluginName.dylib
-```
-
-**Note:** Windows .dll plugins won't work - they must be recompiled for macOS.
-
-## Troubleshooting
-
-### Mods not loading
-- Check `red4ext/logs/red4ext.log` for errors
-- Verify `launch_red4ext.sh` exists and is executable
-- Re-run `./scripts/macos_install.sh`
-
-### "Library not loaded" errors
-```bash
-./scripts/macos_resign_for_hooks.sh
-```
-
-### Game crashes on launch
-- Check if addresses need regeneration (after game update)
-- Disable plugins one by one to find conflicts
-
-## After Game Update
-
-Regenerate addresses:
-```bash
-python3 scripts/generate_addresses.py \
-    "$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077" \
-    --manual scripts/manual_addresses_template.json \
-    --output "$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/red4ext/bin/x64/cyberpunk2077_addresses.json"
-```
-EOF
-
-# Create archive
-cd "$RELEASE_DIR"
-zip -r "${RELEASE_NAME}.zip" "$RELEASE_NAME"
-tar -czvf "${RELEASE_NAME}.tar.gz" "$RELEASE_NAME"
-
-echo ""
-echo "=== Release Created ==="
-echo "Directory: $RELEASE_DIR/$RELEASE_NAME"
-echo "Archives:"
-ls -la "$RELEASE_DIR"/*.zip "$RELEASE_DIR"/*.tar.gz 2>/dev/null
-echo ""
-echo "SHA256 checksums:"
-shasum -a 256 "$RELEASE_DIR"/*.zip "$RELEASE_DIR"/*.tar.gz 2>/dev/null
+cp "$ROOT/docs/INSTALL_MACOS.md" "$STAGE/INSTALL_MACOS.md"
+(cd "$OUT" && rm -f "$NAME.zip" && ditto -c -k --keepParent "$NAME" "$NAME.zip")
+shasum -a 256 "$OUT/$NAME.zip" | tee "$OUT/$NAME.zip.sha256"
+echo "[release] wrote $OUT/$NAME.zip"

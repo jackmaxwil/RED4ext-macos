@@ -27,7 +27,7 @@ DB="$SDK/cyberpunk2077_addresses.json"
 DUMP="$SDK/data/rtti_layout_macos.json"
 GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
 GAME_BIN="${CP2077_BINARY:-$GAME_DIR/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077}"
-CHECK="$ROOT/build-dev/bin/red4ext_plugin_check"
+CHECK="${CP2077_GATE_CHECK:-$ROOT/build-dev/bin/red4ext_plugin_check}"
 
 fail=0
 step() { echo "== $*"; }
