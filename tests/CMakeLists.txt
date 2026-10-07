@@ -120,13 +120,8 @@ if(APPLE)
         validation_plugin/AddressHashList.hpp
     )
 
-    target_include_directories(AddressValidator PRIVATE
-        ${CMAKE_SOURCE_DIR}/deps/red4ext.sdk/include
-        ${CMAKE_SOURCE_DIR}/deps/spdlog/include
-        ${CMAKE_SOURCE_DIR}/deps/fmt/include
-    )
-
     target_link_libraries(AddressValidator
+        RED4ext::SDK
         spdlog::spdlog
         fmt::fmt
     )

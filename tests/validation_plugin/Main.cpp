@@ -1,10 +1,13 @@
 // Common.hpp first: the API headers need its macros.
 #include <RED4ext/Common.hpp>
 
-#include <RED4ext/Api/EMainReason.hpp>
-#include <RED4ext/Api/Runtime.hpp>
-#include <RED4ext/Api/Sdk.hpp>
-#include <RED4ext/Api/Version.hpp>
+#include <RED4ext/Api/ApiVersion.hpp>
+#include <RED4ext/Api/v1/EMainReason.hpp>
+#include <RED4ext/Api/v1/PluginHandle.hpp>
+#include <RED4ext/Api/v1/PluginInfo.hpp>
+#include <RED4ext/Api/v1/Runtime.hpp>
+#include <RED4ext/Api/v1/Sdk.hpp>
+#include <RED4ext/Api/v1/Version.hpp>
 #include <RED4ext/Detail/AddressHashes.hpp>
 #include <RED4ext/Relocation.hpp>
 
@@ -533,18 +536,18 @@ void RunValidation()
 }
 } // namespace
 
-RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::PluginHandle aHandle, RED4ext::EMainReason aReason,
-                                        const RED4ext::Sdk* aSdk)
+RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::v1::PluginHandle aHandle, RED4ext::v1::EMainReason aReason,
+                                        const RED4ext::v1::Sdk* aSdk)
 {
     RED4EXT_UNUSED_PARAMETER(aHandle);
     RED4EXT_UNUSED_PARAMETER(aSdk);
 
     switch (aReason)
     {
-    case RED4ext::EMainReason::Load:
+    case RED4ext::v1::EMainReason::Load:
         RunValidation();
         break;
-    case RED4ext::EMainReason::Unload:
+    case RED4ext::v1::EMainReason::Unload:
         if (auto logger = GetLogger())
         {
             logger->info("[address_validator] Unload");
@@ -557,16 +560,16 @@ RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::PluginHandle aHandle, RED4ext::
     return true;
 }
 
-RED4EXT_C_EXPORT void RED4EXT_CALL Query(RED4ext::PluginInfo* aInfo)
+RED4EXT_C_EXPORT void RED4EXT_CALL Query(RED4ext::v1::PluginInfo* aInfo)
 {
     aInfo->name = L"address_validator";
     aInfo->author = L"RED4ext";
-    aInfo->version = RED4EXT_SEMVER(1, 0, 0);
-    aInfo->runtime = RED4EXT_RUNTIME_INDEPENDENT;
-    aInfo->sdk = RED4EXT_SDK_LATEST;
+    aInfo->version = RED4EXT_V1_SEMVER(1, 0, 0);
+    aInfo->runtime = RED4EXT_V1_RUNTIME_VERSION_INDEPENDENT;
+    aInfo->sdk = RED4EXT_V1_SDK_VERSION_CURRENT;
 }
 
 RED4EXT_C_EXPORT uint32_t RED4EXT_CALL Supports()
 {
-    return RED4EXT_API_VERSION_LATEST;
+    return RED4EXT_API_VERSION_1;
 }

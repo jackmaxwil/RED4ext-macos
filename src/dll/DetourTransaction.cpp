@@ -34,7 +34,6 @@ DetourTransaction::DetourTransaction(const std::source_location aSource)
     , m_hasHeapLock(false)
 #endif
 {
-
     Log::trace("Trying to start a detour transaction in '{}' ({}:{})", m_source.function_name(), m_source.file_name(),
                m_source.line());
 

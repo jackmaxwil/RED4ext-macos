@@ -2,6 +2,13 @@
 #include "App.hpp"
 #include "stdafx.hpp"
 
+#include <RED4ext/Api/v1/PluginHandle.hpp>
+#include <fmt/format.h>
+
+#include <cstdarg>
+#include <cstdio>
+#include <vector>
+
 #ifdef RED4EXT_PLATFORM_MACOS
 // macOS equivalents for Windows-specific printf functions
 inline int macos_vscprintf(const char* format, va_list args)
@@ -40,13 +47,6 @@ inline int macos_vsnwprintf(wchar_t* buffer, size_t bufsize, size_t /*maxcount*/
     return vswprintf(buffer, bufsize, format, args);
 }
 #endif
-
-#include <RED4ext/Api/v1/PluginHandle.hpp>
-#include <fmt/format.h>
-
-#include <cstdarg>
-#include <cstdio>
-#include <vector>
 
 #define Log(func)                                                                                                      \
     if (!aMessage)                                                                                                     \

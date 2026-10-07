@@ -146,7 +146,7 @@ std::string JsonName(RED4ext::CName aName)
 
 // RED4EXT_DUMP_RTTI=1: write every native/scripted class's layout as the macOS game built it to
 // logs/rtti_layout_macos.json. Reads only what docs/re/reflection_layout.md confirmed from macOS code:
-// IRTTISystem::GetClasses (+0x70, takes the RTTI lock), the CBaseRTTIType virtuals, CClass parent @0x10, props @0x28,
+// IRTTISystem::GetClasses (+0x70, takes the RTTI lock), the rtti::IType virtuals, CClass parent @0x10, props @0x28,
 // funcs @0x48, staticFuncs @0x58, flags @0x70, CBaseFunction fullName @0x08, and CProperty type @0x00, name @0x08,
 // valueOffset @0x20, flags @0x28. CClass::unk118 is a lazily built cache (empty for unused classes) and is not read.
 void DumpRttiLayout()
@@ -161,7 +161,7 @@ void DumpRttiLayout()
     RED4ext::DynArray<RED4ext::CClass*> classes;
     rtti->GetClasses(nullptr, classes, nullptr, true);
 
-    std::map<std::string, const RED4ext::CBaseRTTIType*> types;
+    std::map<std::string, const RED4ext::rtti::IType*> types;
     std::string body;
     for (auto cls : classes)
     {
@@ -172,9 +172,9 @@ void DumpRttiLayout()
                             body.empty() ? "" : ",\n", JsonName(cls->GetName()),
                             cls->parent ? JsonName(cls->parent->GetName()) : "", cls->GetSize(), cls->GetAlignment(),
                             *reinterpret_cast<const uint32_t*>(&cls->flags));
-        for (uint32_t i = 0; i < cls->props.size; ++i)
+        for (uint32_t i = 0; i < cls->props.Size(); ++i)
         {
-            auto prop = cls->props.entries[i];
+            auto prop = cls->props[i];
             if (!prop)
                 continue;
             auto typeName = prop->type ? JsonName(prop->type->GetName()) : "";
@@ -188,9 +188,9 @@ void DumpRttiLayout()
         auto appendFuncs = [&body](const char* aKey, auto& aList)
         {
             body += fmt::format(",\"{}\":[", aKey);
-            for (uint32_t i = 0; i < aList.size; ++i)
+            for (uint32_t i = 0; i < aList.Size(); ++i)
             {
-                auto func = aList.entries[i];
+                auto func = aList[i];
                 body += fmt::format("{}\"{}\"", i ? "," : "", func ? JsonName(func->fullName) : "");
             }
             body += "]";
@@ -212,7 +212,7 @@ void DumpRttiLayout()
     const auto path = App::Get()->GetPaths()->GetLogsDir() / "rtti_layout_macos.json";
     std::ofstream file(path, std::ios::trunc);
     file << "{\"uuid\":\"" << uuid << "\",\n\"classes\":{\n" << body << "},\n\"types\":{\n" << typeBody << "}}\n";
-    Log::info("Wrote the RTTI layout of {} classes and {} types to {}", classes.size, types.size(), path.string());
+    Log::info("Wrote the RTTI layout of {} classes and {} types to {}", classes.Size(), types.size(), path.string());
 }
 } // namespace
 
