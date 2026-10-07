@@ -1,0 +1,33 @@
+#!/bin/bash
+# Point every repo's RED4ext.SDK submodule at the SDK's pushed main, and commit the change where it moved.
+#
+#   tools/bump-sdk          # commit locally
+#   tools/bump-sdk --push   # and push each repo
+#
+# Consumers: RED4ext (deps/red4ext.sdk), TweakXL, ArchiveXL and ModMenu (vendor/RED4ext.SDK), as sibling checkouts.
+set -euo pipefail
+
+WS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PUSH=${1:-}
+
+git -C "$WS/RED4ext.SDK" fetch -q origin
+SDK=$(git -C "$WS/RED4ext.SDK" rev-parse origin/main)
+echo "RED4ext.SDK origin/main = ${SDK:0:10}"
+
+for spec in RED4ext:deps/red4ext.sdk cp2077-tweak-xl:vendor/RED4ext.SDK cp2077-archive-xl-macos:vendor/RED4ext.SDK \
+    cp2077-modmenu:vendor/RED4ext.SDK; do
+    repo=$WS/${spec%%:*}
+    sub=${spec#*:}
+    [[ -d "$repo/.git" ]] || { echo "skip ${spec%%:*}: not checked out"; continue; }
+    git -C "$repo" submodule update --init -q "$sub"
+    git -C "$repo/$sub" fetch -q origin
+    git -C "$repo/$sub" checkout -q "$SDK"
+    if git -C "$repo" diff --quiet -- "$sub"; then
+        echo "${spec%%:*}: already at ${SDK:0:10}"
+        continue
+    fi
+    git -C "$repo" add "$sub"
+    git -C "$repo" commit -q -m "Bump RED4ext.SDK" -- "$sub"
+    echo "${spec%%:*}: bumped to ${SDK:0:10}"
+    [[ "$PUSH" == --push ]] && git -C "$repo" push -q
+done

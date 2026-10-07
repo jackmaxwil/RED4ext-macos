@@ -21,7 +21,8 @@ NAME="RED4ext-macOS-arm64-$VERSION"
 STAGE="$OUT/$NAME"
 
 build() { # <source dir> <build dir>
-    cmake -S "$1" -B "$2" -DCMAKE_BUILD_TYPE=Release >/dev/null
+    # Every repo builds against the workspace SDK checkout (the one the address database and gates come from).
+    cmake -S "$1" -B "$2" -DCMAKE_BUILD_TYPE=Release -DRED4EXT_SDK_DIR="$WS/RED4ext.SDK" >/dev/null
     cmake --build "$2" -j "$(sysctl -n hw.ncpu)" >"$2.log" 2>&1 || { tail -20 "$2.log"; exit 1; }
 }
 

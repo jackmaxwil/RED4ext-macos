@@ -4,9 +4,9 @@ if(APPLE)
   set(RED4EXT_USE_PCH OFF)
   set(RED4EXT_HEADER_ONLY ON CACHE BOOL "" FORCE)
   
-  # On macOS, use the SDK from the submodule (which should be the macOS-compatible fork)
-  # The submodule at deps/red4ext.sdk should point to jackmaxwil/RED4ext.SDK-macos
-  set(RED4EXT_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/red4ext.sdk")
+  # RED4EXT_SDK_DIR is the SDK repository root; it defaults to the pinned deps/red4ext.sdk submodule
+  # (jackmaxwil/RED4ext.SDK-macos). tools/cp-dev and scripts/create_release.sh pass the workspace checkout explicitly.
+  set(RED4EXT_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/red4ext.sdk" CACHE PATH "RED4ext.SDK repository root")
   set(RED4EXT_SDK_INCLUDE_DIR "${RED4EXT_SDK_DIR}/include")
   
   if(NOT EXISTS "${RED4EXT_SDK_INCLUDE_DIR}")
