@@ -1,0 +1,8 @@
+# The edited tweak: the reload key must apply the changed value and the added flat without a restart.
+CpAutotest.ReloadFlat:
+  $type: Int32
+  $value: 2
+
+CpAutotest.ReloadAdded:
+  $type: Int32
+  $value: 7

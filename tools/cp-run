@@ -179,10 +179,13 @@ if grep -q "Compilation failed" "$RUN_DIR/scc.log" 2>/dev/null; then
     say "FAIL $SCENARIO: redscript compilation failed (see $RUN_DIR/scc.log)"
     exit 1
 fi
-[[ -x "$GAME_DIR/engine/tools/inputloader.pl" ]] && "$GAME_DIR/engine/tools/inputloader.pl" >"$RUN_DIR/inputloader.log" 2>&1 || true
+# Merges r6/input/*.xml into r6/cache, which the game reads its bindings from. It uses paths relative to the game folder.
+[[ -x "$GAME_DIR/engine/tools/inputloader.pl" ]] && (cd "$GAME_DIR" && engine/tools/inputloader.pl) >"$RUN_DIR/inputloader.log" 2>&1 || true
 
 START=$(date +%s)
 touch "$RUN_DIR/.start"
+# The app the user is in; given focus back at once if the game ever takes it.
+USER_APP=$(lsappinfo info -only bundleid "$(lsappinfo front)" 2>/dev/null | sed -n 's/.*="\(.*\)"/\1/p')
 say "launching ($SCENARIO, timeout ${TIMEOUT}s, core_hooks=[${CORE_HOOKS}], plugins=[${CP_PLUGINS:-}])"
 # The start screen is where the game loads the player profile; with -skipStartScreen the menu shows no saves. Scenarios
 # that load a save (in-world scenarios, or CP_PRESS_START=1) keep the start screen and press Space on it from the
@@ -204,13 +207,16 @@ GAME_PID=$!
 # --- watch ----------------------------------------------------------------------------------------
 # Nothing here takes the user's focus, keyboard or mouse: keys go to the game process only (keypress.swift), the
 # game runs with RED4EXT_BACKGROUND=1 (no activation, no cursor capture), and screenshots read its window in place.
+# Compiled once per run: interpreting the Swift helpers takes seconds per call, too slow for a key press a step waits on.
+swiftc -O "$TOOLS_DIR/window-id.swift" -o "$RUN_DIR/window-id" 2>>"$RUN_DIR/keys.log" || true
+swiftc -O "$TOOLS_DIR/keypress.swift" -o "$RUN_DIR/keypress" 2>>"$RUN_DIR/keys.log" || true
 shot() { # screenshot of the game window, if it has one
     local id
-    id=$(swift "$TOOLS_DIR/window-id.swift" "$GAME_PID" 2>/dev/null || true)
+    id=$("$RUN_DIR/window-id" "$GAME_PID" 2>/dev/null || true)
     [[ -n "$id" ]] && screencapture -x -o -l "$id" "$RUN_DIR/$1.png" 2>/dev/null || true
 }
 press_key() { # <macOS key code>
-    swift "$TOOLS_DIR/keypress.swift" "$GAME_PID" "$1" >>"$RUN_DIR/keys.log" 2>&1 || true
+    "$RUN_DIR/keypress" "$GAME_PID" "$1" >>"$RUN_DIR/keys.log" 2>&1 || true
 }
 in_world() { awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/WORLD_READY/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log" 2>/dev/null; }
 OUTCOME=timeout
@@ -230,8 +236,24 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
             if [[ $n -gt $SHOTS_TAKEN ]]; then shot "$n-$s"; SHOTS_TAKEN=$n; fi
         done
     fi
-    if [[ $FRONT_REPORTED -eq 0 ]] && lsappinfo info -only pid "$(lsappinfo front)" 2>/dev/null | grep -q "=$GAME_PID\$"; then
-        say "WARNING: the game became the frontmost app ($((now - START)) s in)"; FRONT_REPORTED=1
+    # The driver can ask for a key press ({"event":"PRESS","key":<macOS key code>}, sent to the game process only)
+    # and for the scenario's edited tweak file ({"event":"NEXT_TWEAK"}: <scenario>.next.yaml replaces the installed
+    # one, for TweakXL hot reload).
+    if [[ -f "$LOGS_DIR/autotest.log" ]]; then
+        keys=$(grep -o '"event":"PRESS","key":[0-9]*' "$LOGS_DIR/autotest.log" | sed 's/.*://' || true)
+        n=0
+        for k in $keys; do
+            n=$((n + 1))
+            if [[ $n -gt ${PRESSES_DONE:-0} ]]; then press_key "$k"; PRESSES_DONE=$n; fi
+        done
+        if [[ -z "${TWEAK_SWAPPED:-}" ]] && grep -q '"event":"NEXT_TWEAK"' "$LOGS_DIR/autotest.log"; then
+            cp "$TOOLS_DIR/autotest/scenarios/$SCENARIO.next.yaml" "$GAME_DIR/r6/tweaks/cp_autotest.yaml"; TWEAK_SWAPPED=1
+        fi
+    fi
+    if lsappinfo info -only pid "$(lsappinfo front)" 2>/dev/null | grep -q "=$GAME_PID\$"; then
+        say "WARNING: the game became the frontmost app ($((now - START)) s in); giving focus back to ${USER_APP:-?}"
+        FRONT_REPORTED=$((FRONT_REPORTED + 1))
+        [[ -n "$USER_APP" ]] && open -b "$USER_APP"
     fi
     if [[ -f "$LOGS_DIR/autotest.log" ]] && grep -q '"event":"DONE"' "$LOGS_DIR/autotest.log"; then
         OUTCOME=results

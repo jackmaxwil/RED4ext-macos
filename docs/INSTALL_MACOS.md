@@ -12,7 +12,7 @@ This release is for **Cyberpunk 2077 2.3.1 (patch 2.31) on Apple silicon, Steam*
 | `red4ext/plugins/TweakXL` | TweakXL, which loads TweakDB tweaks from `r6/tweaks/*.yaml`. |
 | `red4ext/plugins/ModMenu` | ModMenu. Press ` (the key left of 1) or F10 in game. |
 | `red4ext/plugins/ArchiveXL` | ArchiveXL, which loads `.xl` resource extensions from mods. The packed `ArchiveXL.archive` (built with WolvenKit) is not included yet, so its built-in character-customization fixes log "not ready" errors. Hot reload is disabled on macOS. |
-| `r6/input/modmenu.xml` | ModMenu's key binding. |
+| `r6/input/modmenu.xml`, `r6/input/tweakxl.xml` | Key bindings: ModMenu (`` ` ``) and TweakXL hot reload (`\`). |
 | `launch_red4ext.sh` | The launcher. |
 | `red4ext/macos/scripts/install_macos.sh` | One-time setup that re-signs the game binary. |
 
@@ -38,6 +38,10 @@ The launcher compiles the game's scripts together with the scripts of the plugin
 
 Logs are in `red4ext/logs/` and in each plugin's folder. A plugin that RED4ext refuses is named in `red4ext/logs/red4ext-*.log`, along with the reason. One possible reason is an unverified game address. The game still starts without that plugin.
 
+## Editing tweaks while playing
+
+TweakXL reloads `r6/tweaks` when you press `\` (backslash) in game, and shows "TweakXL: tweaks reloaded". Changed and added records apply at once. Objects that already copied a record, such as an equipped item or a spawned NPC, pick up the change when they are created again.
+
 ## After a game update
 
 A game patch changes the binary. RED4ext then refuses to hook anything, and the game runs unmodded, until a release for the new build is out. Do not edit the address database by hand.
@@ -48,6 +52,6 @@ A game patch changes the binary. RED4ext then refuses to hook anything, and the 
 2. Delete:
    - `red4ext/`
    - `launch_red4ext.sh`
-   - `r6/input/modmenu.xml`
+   - `r6/input/modmenu.xml` and `r6/input/tweakxl.xml`
    - `r6/scripts/zz_red4ext_plugins/`
    - `Cyberpunk2077.orig`

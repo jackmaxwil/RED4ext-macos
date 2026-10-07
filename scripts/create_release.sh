@@ -55,6 +55,8 @@ install -m 755 "$ROOT/scripts/install_macos.sh" "$R4E/macos/scripts/install_maco
 
 install -m 755 "$TWEAKXL" "$R4E/plugins/TweakXL/TweakXL.dylib"
 cp -R "$WS/cp2077-tweak-xl/scripts" "$R4E/plugins/TweakXL/Scripts"
+rm -rf "$R4E/plugins/TweakXL/Scripts/r6"
+cp -R "$WS/cp2077-tweak-xl/scripts/r6/." "$STAGE/r6/"
 cp -R "$WS/cp2077-tweak-xl/data" "$R4E/plugins/TweakXL/Data"
 
 mkdir -p "$R4E/plugins/ArchiveXL/Bundle"

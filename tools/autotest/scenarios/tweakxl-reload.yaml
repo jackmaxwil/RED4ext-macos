@@ -1,0 +1,5 @@
+# Installed as r6/tweaks/cp_autotest.yaml by cp-run for the tweakxl-reload scenario; replaced mid-run by
+# tweakxl-reload.next.yaml when the scenario reports NEXT_TWEAK.
+CpAutotest.ReloadFlat:
+  $type: Int32
+  $value: 1

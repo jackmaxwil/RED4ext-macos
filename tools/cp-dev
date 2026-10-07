@@ -48,6 +48,7 @@ for entry in $PLUGIN_TABLE; do
         # Plugin scripts live with the plugin; cp-run compiles them only when the plugin is loaded.
         rm -rf "$GAME_DIR/r6/scripts/$name" "$R4E_DIR/plugins/$name/Scripts"
         cp -R "$WS/$repo/$scripts" "$R4E_DIR/plugins/$name/Scripts"
+        rm -rf "$R4E_DIR/plugins/$name/Scripts/r6" # game files, installed below
     fi
     # Plugin-provided game files (e.g. input bindings for inputloader.pl in r6/input).
     if [[ -d "$WS/$repo/scripts/r6" ]]; then

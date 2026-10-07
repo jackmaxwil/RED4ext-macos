@@ -1,6 +1,6 @@
 module CpAutotest
 
-// ModMenu's in-world overlay, driven from script (no OS input): open it, select a mod, flip its demo toggle, close it.
+// ModMenu's in-world overlay, driven from script: open it, select a mod, flip its demo toggle, close it with its key.
 // Pointer hit-testing itself is not covered: these call the same methods the click callbacks call.
 public func CpRunMenuChecks(scenario: String) -> Void {}
 
@@ -31,10 +31,12 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
             CpShot("toggled");
             return 3.0;
         case 4:
-            // Restore the user's value, then close.
+            // Restore the user's value, then close with the toggle key (50: `), as a player would.
             overlay.ModMenu_FlipToggle("demo_toggle");
-            overlay.ModMenu_Toggle(false);
-            CpCheck("closed", !ModMenu_IsOpen() && !player.modmenuOpen, "");
+            CpReport("{\"event\":\"PRESS\",\"key\":50}");
+            return 4.0;
+        case 5:
+            CpCheck("closed_by_key", !ModMenu_IsOpen() && !player.modmenuOpen, "");
             CpCheck("modal_off", !overlay.ModMenu_IsModal(), "");
             CpShot("closed-after");
             return 3.0;

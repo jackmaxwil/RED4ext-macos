@@ -12,8 +12,8 @@
 // and so do NSApplication's activation requests, so the window stays behind whatever the user is working in.
 // The test driver still has to press keys (the loading screens' "press to continue"), and sends them to the process
 // only (CGEventPostToPid). -[GameView keyDown:] ignores keys unless -[GameWindowController m_windowFocus], and an
-// inactive app has no key window to route key events to, so here the game is always "focused" and key events with
-// no key window go straight to the game's view.
+// inactive app does not deliver key events to its windows, so here the game is always "focused" and every key event
+// goes straight to the game's view.
 // The Objective-C runtime's C API, declared here: <objc/runtime.h> clashes with the precompiled header's BOOL.
 extern "C"
 {
@@ -38,10 +38,12 @@ CGError NoWarpCursor(CGPoint)
 
 void NoActivate(void*, void*)
 {
+    spdlog::info("Background mode: blocked -[NSApplication activate]");
 }
 
 void NoActivateFlag(void*, void*, signed char)
 {
+    spdlog::info("Background mode: blocked -[NSApplication activateIgnoringOtherApps:]");
 }
 
 template<typename R, typename... Args>
@@ -59,22 +61,33 @@ void* Replace(const char* aClass, const char* aSelector, void* aImp)
     return method ? method_setImplementation(method, aImp) : nullptr;
 }
 
+void IgnoreNotification(void*, void*, void*)
+{
+}
+
 signed char AlwaysFocused(void*, void*)
 {
     return 1;
 }
 
+const char* ClassName(void* aObject)
+{
+    auto name = Send<void*>(Send<void*>(aObject, "className"), "UTF8String");
+    return name ? static_cast<const char*>(name) : "?";
+}
+
+// The game's window is a GameWindow, its content view the GameView that handles keys.
 void* GameView(void* aApp)
 {
-    auto gameWindowClass = objc_getClass("GameWindow");
     auto windows = Send<void*>(aApp, "windows");
     auto count = Send<unsigned long>(windows, "count");
     for (unsigned long i = 0; i < count; ++i)
     {
         auto window = Send<void*>(windows, "objectAtIndex:", i);
-        if (Send<signed char>(window, "isKindOfClass:", gameWindowClass))
+        auto view = Send<void*>(window, "contentView");
+        if (view && Send<signed char>(view, "isKindOfClass:", objc_getClass("GameView")))
         {
-            return Send<void*>(window, "m_view");
+            return view;
         }
     }
     return nullptr;
@@ -89,10 +102,32 @@ SendEventFn g_sendEvent = nullptr;
 void SendEventToGameView(void* aApp, void* aSelector, void* aEvent)
 {
     auto type = Send<unsigned long>(aEvent, "type");
-    if ((type == NSEventTypeKeyDown || type == NSEventTypeKeyUp) && !Send<void*>(aApp, "keyWindow"))
+    if (type == NSEventTypeKeyDown || type == NSEventTypeKeyUp)
     {
-        if (auto view = GameView(aApp))
+        auto view = GameView(aApp);
+        if (view)
         {
+            static bool focused = false;
+            if (!focused)
+            {
+                // The engine takes gameplay input only while it has focus, which it gets from the window becoming
+                // key (never, in the background): send the game's own become-key handlers once. They notify the
+                // engine, its window-focus listeners and the view.
+                focused = true;
+                auto window = Send<void*>(view, "window");
+                auto delegate = window ? Send<void*>(window, "delegate") : nullptr;
+                auto controller = Send<void*>(view, "m_windowController");
+                if (delegate)
+                {
+                    Send<void>(delegate, "windowDidBecomeKey:", static_cast<void*>(nullptr));
+                }
+                if (controller)
+                {
+                    Send<void>(controller, "windowDidBecomeKey:", static_cast<void*>(nullptr));
+                }
+                spdlog::info("Background mode: gave the game focus (window delegate {}, controller {})",
+                             delegate ? ClassName(delegate) : "none", controller ? ClassName(controller) : "none");
+            }
             Send<void>(view, type == NSEventTypeKeyDown ? "keyDown:" : "keyUp:", aEvent);
             return;
         }
@@ -118,6 +153,10 @@ void EnableBackgroundModeIfRequested()
     Replace("NSApplication", "activate", reinterpret_cast<void*>(&NoActivate));
     Replace("NSApplication", "activateIgnoringOtherApps:", reinterpret_cast<void*>(&NoActivateFlag));
     Replace("GameWindowController", "m_windowFocus", reinterpret_cast<void*>(&AlwaysFocused));
+    Replace("NSApplication", "isActive", reinterpret_cast<void*>(&AlwaysFocused));
+    // Keep that focus: the user clicking the game window and then away must not take it back.
+    Replace("GameWindowController", "windowDidResignKey:", reinterpret_cast<void*>(&IgnoreNotification));
+    Replace("GameWindowDelegate", "windowDidResignKey:", reinterpret_cast<void*>(&IgnoreNotification));
     g_sendEvent = reinterpret_cast<SendEventFn>(
         Replace("NSApplication", "sendEvent:", reinterpret_cast<void*>(&SendEventToGameView)));
 }

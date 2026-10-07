@@ -49,8 +49,9 @@ if [[ -x "$SCRIPT_DIR/engine/tools/scc" ]]; then
     fi
 fi
 
-# Process input mappings
-[[ -x "$SCRIPT_DIR/engine/tools/inputloader.pl" ]] && "$SCRIPT_DIR/engine/tools/inputloader.pl" 2>&1 || true
+# Merge mod key bindings (r6/input/*.xml) into r6/cache, where the game reads them. The loader uses paths relative to
+# the game folder, so it runs from there wherever this script is started from.
+[[ -x "$SCRIPT_DIR/engine/tools/inputloader.pl" ]] && (cd "$SCRIPT_DIR" && engine/tools/inputloader.pl) 2>&1 || true
 
 # Started outside Steam, the game's SteamAPI_Init has no app ID and fails (no saves, no achievements). Pass the ID that
 # Steam itself sets, only when Steam is already running; this script never starts Steam.
