@@ -362,32 +362,31 @@ MigrationBackup/
 FodyWeavers.xsd
 
 ### Custom ###
-build
-build-macos/
-src/dll/Version.hpp
-cyberpunk.rep/
-cyberpunk.gpr
-scripts/dev/
-scripts/__pycache__/
-scripts/.tmp/
-scripts/outputs/
-scripts/re_tools/__pycache__/
-scripts/lib/__pycache__/
-scripts/*.cache
-scripts/symbols_*.txt
-scripts/*.log
-.DS_Store
+# Build output and logs
+build/
+build*/
+bin/
 release/
+*.log
+src/dll/Version.hpp
+
+# Test runs (tools/cp-run)
+runs/
+
+# Local tooling and OS files
 .DS_Store
 .cursor/
+__pycache__/
 
-# macOS port
-build-macos*/
-build-native-hooks/
-scripts/re_tools/**/*.json
-scripts/re_tools/nativedb_data/
+# Ghidra projects
+*.gpr
+*.rep/
 
-# Test runner output
-runs/
-build-dev*/
-build-native-hooks/
+# Local research scripts and their data (not part of the build)
+scripts/dev/
+scripts/lib/
+scripts/re_tools/
+scripts/.tmp/
+scripts/outputs/
+scripts/*.cache
+scripts/symbols_*.txt

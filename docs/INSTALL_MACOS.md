@@ -6,7 +6,7 @@ This release is for **Cyberpunk 2077 2.3.1 (patch 2.31) on Apple silicon, Steam*
 
 | Path | What it is |
 | --- | --- |
-| `red4ext/RED4ext.dylib` | The mod loader. It hooks the game natively, without Frida. |
+| `red4ext/RED4ext.dylib` | The mod loader. It hooks the game natively. |
 | `red4ext/bin/x64/cyberpunk2077_addresses.json` | The game addresses. Only entries marked verified are ever used. |
 | `red4ext/bin/red4ext_plugin_check` | Used by the launcher. It compiles a plugin's scripts only if RED4ext will load that plugin. |
 | `red4ext/plugins/TweakXL` | TweakXL, which loads TweakDB tweaks from `r6/tweaks/*.yaml`. |
@@ -19,7 +19,11 @@ This release is for **Cyberpunk 2077 2.3.1 (patch 2.31) on Apple silicon, Steam*
 ## Install
 
 1. Quit the game.
-2. Unzip the archive over the game folder, which is usually `~/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077`. `launch_red4ext.sh` should end up next to `Cyberpunk2077.app`.
+2. Unzip the archive. It contains one folder, `RED4ext-macOS-arm64-VERSION`. Copy the contents of that folder into the game folder, which is usually `~/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077`. `launch_red4ext.sh` should end up next to `Cyberpunk2077.app`. In Terminal, from the folder that holds the zip:
+   ```bash
+   unzip -o RED4ext-macOS-arm64-VERSION.zip
+   ditto RED4ext-macOS-arm64-VERSION "$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077"
+   ```
 3. Run the one-time setup:
    ```bash
    "$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/red4ext/macos/scripts/install_macos.sh"

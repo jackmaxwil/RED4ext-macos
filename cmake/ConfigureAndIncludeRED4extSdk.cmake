@@ -5,7 +5,7 @@ if(APPLE)
   set(RED4EXT_HEADER_ONLY ON CACHE BOOL "" FORCE)
   
   # On macOS, use the SDK from the submodule (which should be the macOS-compatible fork)
-  # The submodule at deps/red4ext.sdk should point to memaxo/RED4ext.SDK-macos
+  # The submodule at deps/red4ext.sdk should point to jackmaxwil/RED4ext.SDK-macos
   set(RED4EXT_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/red4ext.sdk")
   set(RED4EXT_SDK_INCLUDE_DIR "${RED4EXT_SDK_DIR}/include")
   
@@ -13,7 +13,7 @@ if(APPLE)
     message(FATAL_ERROR 
       "RED4ext.SDK not found at ${RED4EXT_SDK_DIR}\n"
       "Please run: git submodule update --init --recursive\n"
-      "The SDK submodule should point to memaxo/RED4ext.SDK-macos for macOS support.")
+      "The SDK submodule should point to jackmaxwil/RED4ext.SDK-macos for macOS support.")
   endif()
   
   add_library(RED4ext.SDK INTERFACE)

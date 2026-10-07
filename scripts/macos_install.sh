@@ -181,9 +181,6 @@ install_files() {
         log_warn "red4ext_plugin_check not found - the launcher will not compile any plugin scripts"
     fi
     
-    # Remove leftovers from the Frida-based setup
-    rm -f "$red4ext_dir/FridaGadget.dylib" "$red4ext_dir/FridaGadget.config" "$red4ext_dir/red4ext_hooks.js"
-
     # Install the single canonical address database (from the SDK submodule) and drop stale copies.
     local sdk_db="$SCRIPT_DIR/../deps/red4ext.sdk/cyberpunk2077_addresses.json"
     rm -f "$red4ext_dir/cyberpunk2077_addresses.json" "$bin_dir/cyberpunk2077_addresses.loader.json"
