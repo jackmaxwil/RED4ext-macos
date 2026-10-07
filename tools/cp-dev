@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build, sign, install, and test in one step (RESUME_PLAN T.7).
 #
-#   tools/cp-dev <scenario> [--plugins] [cp-run options...]
+#   tools/cp-dev <scenario> [--plugins NAME,...] [cp-run options...]
+#   tools/cp-dev install [--plugins NAME,...]     # build, sign and install only; no game launch
 #
 # Builds RED4ext (Release), and with --plugins also ArchiveXL, TweakXL and ModMenu from
 # their sibling repos. Signs every dylib explicitly, installs into the game's red4ext/ directory with the
@@ -19,6 +20,12 @@ WS="$(cd "$ROOT/.." && pwd)"
 GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
 R4E_DIR="$GAME_DIR/red4ext"
 BUILD="$ROOT/build-dev"
+
+# Installing replaces files the running game has loaded.
+if pgrep -x Cyberpunk2077 >/dev/null; then
+    echo "[cp-dev] the game is running; not installing over it" >&2
+    exit 2
+fi
 
 build() { # <source dir> <build dir>
     # Every repo builds against the workspace SDK checkout (the one the address database and gates come from).
@@ -75,4 +82,8 @@ for entry in $PLUGIN_TABLE; do
 done
 export CP_PLUGINS="${CP_PLUGINS:-$PLUGINS}"
 
+if [[ "$SCENARIO" == install ]]; then
+    echo "[cp-dev] installed RED4ext${PLUGINS:+ and $PLUGINS}"
+    exit 0
+fi
 exec "$TOOLS_DIR/cp-run" "$SCENARIO" "$@"
