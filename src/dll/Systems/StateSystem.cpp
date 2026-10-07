@@ -23,6 +23,35 @@ void WriteMilestone(const char* aEvent, RED4ext::EGameStateType aStateType)
                         .count();
     file << ms << ' ' << aEvent << ' ' << Utils::Narrow(Utils::GetStateName(aStateType)) << '\n';
 }
+
+// SDK smoke checks against the live game, run once when the Running state is entered. Each writes
+// "CHECK <name> pass|fail" to milestones.log for the test runner.
+void RunSdkSelfChecks()
+{
+    const auto app = App::Get();
+    std::ofstream file(app->GetPaths()->GetLogsDir() / "milestones.log", std::ios::app);
+
+    auto allocator = RED4ext::Memory::DefaultAllocator::Get();
+    auto block = allocator->Alloc(64);
+    bool memOk = block.memory != nullptr && block.size >= 64;
+    if (memOk)
+    {
+        std::memset(block.memory, 0xAB, 64);
+        auto grown = allocator->Realloc(block, 4096);
+        memOk = grown.memory != nullptr && static_cast<uint8_t*>(grown.memory)[63] == 0xAB;
+        if (grown.memory)
+        {
+            allocator->Free(grown);
+        }
+    }
+    file << "CHECK memory_pool_default " << (memOk ? "pass" : "fail") << std::endl;
+
+    // A wrong CRTTISystem_Get address returns an object without a vtable; do not call through it.
+    auto rtti = RED4ext::CRTTISystem::Get();
+    auto hasVtable = rtti && *reinterpret_cast<void**>(rtti) != nullptr;
+    auto boolType = hasVtable ? rtti->GetType("Bool") : nullptr;
+    file << "CHECK rtti_get_type " << (boolType && boolType->GetSize() == 1 ? "pass" : "fail") << std::endl;
+}
 } // namespace
 
 ESystemType StateSystem::GetType()
@@ -88,6 +117,10 @@ bool StateSystem::OnEnter(RED4ext::EGameStateType aStateType, RED4ext::CGameAppl
     if (state)
     {
         WriteMilestone("ENTER", aStateType);
+        if (aStateType == RED4ext::EGameStateType::Running)
+        {
+            RunSdkSelfChecks();
+        }
         auto action = fmt::format(L"{}::OnEnter", Utils::GetStateName(aStateType));
         return Run(action, state->onEnter, aApp);
     }

@@ -165,7 +165,7 @@ else
 fi
 wait "$GAME_PID" 2>/dev/null && EXIT_CODE=0 || EXIT_CODE=$?
 GAME_PID=""
-sleep 3 # let ReportCrash write the .ips
+for _ in $(seq 15); do find "$HOME/Library/Logs/DiagnosticReports" -name "Cyberpunk2077*.ips" -newer "$RUN_DIR/.start" | grep -q . && break; [[ $EXIT_CODE -eq 0 || $EXIT_CODE -eq 143 ]] && break; sleep 1; done # ReportCrash can take a few seconds
 
 # --- collect --------------------------------------------------------------------------------------
 cp "$LOGS_DIR"/{hookstats.json,milestones.log} "$RUN_DIR/" 2>/dev/null || true
@@ -219,6 +219,10 @@ except OSError:
     milestones = ""
 if "ENTER Running" not in milestones:
     fails.append("Running state never entered (milestones.log)")
+for line in milestones.splitlines():
+    parts = line.split()
+    if parts[:1] == ["CHECK"] and parts[-1] != "pass":
+        fails.append(f"RED4ext self-check {parts[1]}: {parts[-1]}")
 if scenario != "boot":
     try:
         res = json.load(open(os.path.join(run, "results.json")))
