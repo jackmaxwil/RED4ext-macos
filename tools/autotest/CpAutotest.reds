@@ -17,9 +17,8 @@ protected cb func OnInitialize() -> Bool {
     let result = wrappedMethod();
     CpReport("{\"event\":\"MAIN_MENU\",\"scenario\":\"" + CpAutotestScenario() + "\"}");
     if Equals(CpAutotestScenario(), "load") {
-        // The save list may not be cached yet while the menu initializes, so do not gate on HasLastCheckpoint().
-        CpReport("{\"event\":\"LOAD_LAST_CHECKPOINT\"}");
-        this.GetSystemRequestsHandler().LoadLastCheckpoint(false);
+        // Loading waits for OnSavesForLoadReady: right after the start screen the save list is not known yet, and a
+        // load requested now does nothing.
     } else {
         // Menu scenarios: TweakDB, resources and natives are all live at the main menu.
         CpRunMenuChecks(CpAutotestScenario());
@@ -54,5 +53,28 @@ protected cb func OnInitialize() -> Bool {
 protected cb func OnInitialize() -> Bool {
     let result = wrappedMethod();
     CpReport("{\"event\":\"START_SCREEN\"}");
+    return result;
+}
+
+@addField(SingleplayerMenuGameController)
+private let cpLoadIssued: Bool;
+
+// The menu has the save list: load the most recent save (the main menu's Continue), once.
+@wrapMethod(SingleplayerMenuGameController)
+protected cb func OnSavesForLoadReady(saves: array<String>) -> Bool {
+    let result = wrappedMethod(saves);
+    if Equals(CpAutotestScenario(), "load") && !this.cpLoadIssued && ArraySize(saves) > 0 {
+        this.cpLoadIssued = true;
+        CpReport("{\"event\":\"LOAD_LAST_CHECKPOINT\",\"saves\":" + ToString(ArraySize(saves)) + "}");
+        this.GetSystemRequestsHandler().LoadLastCheckpoint(false);
+    }
+    return result;
+}
+
+// The loading screen has ended and the player is in the world (the main-menu scene's puppet never gets this).
+@wrapMethod(PlayerPuppet)
+protected cb func OnMakePlayerVisibleAfterSpawn(evt: ref<EndGracePeriodAfterSpawn>) -> Bool {
+    let result = wrappedMethod(evt);
+    CpReport("{\"event\":\"WORLD_READY\"}");
     return result;
 }

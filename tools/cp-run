@@ -204,7 +204,7 @@ NEXT_START_PRESS=$START
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
     if [[ -f "$LOGS_DIR/autotest.log" ]] &&
-        awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/PLAYER_ATTACHED/{f=1} /"event":"DONE"/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log"; then
+        awk '/WORLD_READY/{f=1} /"event":"DONE"/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log"; then
         OUTCOME=results
         # CP_WORLD_HOLD=N keeps the game running N more seconds (e.g. so the in-world HUD is built), with a screenshot
         # before and after; CP_KEYCODE=<macOS virtual key code> presses that key in the game window in between
@@ -224,11 +224,11 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         break
     fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
-    # Press Space as soon as the start screen is up (and again every 10 s, at most 4 times, until a menu appears).
-    if [[ -z "$START_ARGS" && $START_PRESSES -lt 4 && $now -ge $NEXT_START_PRESS ]] &&
-        grep -q START_SCREEN "$LOGS_DIR/autotest.log" 2>/dev/null &&
-        ! grep -q MAIN_MENU "$LOGS_DIR/autotest.log" 2>/dev/null; then
-        sleep 2; press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 10))
+    # The boot loading screen, the start screen and the load screen after a save all wait on "PRESS ... TO CONTINUE".
+    # Press Space every 5 s from 8 s in until the player is in the world (WORLD_READY; then Space would jump).
+    if [[ -z "$START_ARGS" && $START_PRESSES -lt 40 && $now -ge $NEXT_START_PRESS && $((now - START)) -ge 8 ]] &&
+        ! grep -q WORLD_READY "$LOGS_DIR/autotest.log" 2>/dev/null; then
+        press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 5))
     fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
     sleep 2
@@ -271,7 +271,7 @@ if events:
     loads = [i for i, e in enumerate(events) if e.get("event") == "LOAD_LAST_CHECKPOINT"]
     if loads:
         events = events[loads[0]:]
-        done = any(e.get("event") == "PLAYER_ATTACHED" for e in events)
+        done = any(e.get("event") == "WORLD_READY" for e in events)
     else:
         done = any(e.get("event") == "DONE" for e in events)
     checks = [e for e in events if e.get("event") == "CHECK"]
