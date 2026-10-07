@@ -386,3 +386,8 @@ build-macos*/
 build-native-hooks/
 scripts/re_tools/**/*.json
 scripts/re_tools/nativedb_data/
+
+# Test runner output
+runs/
+build-dev*/
+build-native-hooks/

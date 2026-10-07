@@ -1,6 +1,29 @@
 #include "stdafx.hpp"
 #include "StateSystem.hpp"
 #include "Utils.hpp"
+#include "App.hpp"
+
+#include <chrono>
+#include <fstream>
+
+namespace
+{
+// One line per state transition in red4ext/logs/milestones.log, read by the unattended test runner.
+void WriteMilestone(const char* aEvent, RED4ext::EGameStateType aStateType)
+{
+    const auto app = App::Get();
+    if (!app || !app->GetPaths())
+    {
+        return;
+    }
+
+    std::ofstream file(app->GetPaths()->GetLogsDir() / "milestones.log", std::ios::app);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch())
+                        .count();
+    file << ms << ' ' << aEvent << ' ' << Utils::Narrow(Utils::GetStateName(aStateType)) << '\n';
+}
+} // namespace
 
 ESystemType StateSystem::GetType()
 {
@@ -64,6 +87,7 @@ bool StateSystem::OnEnter(RED4ext::EGameStateType aStateType, RED4ext::CGameAppl
     State* state = GetStateByType(aStateType);
     if (state)
     {
+        WriteMilestone("ENTER", aStateType);
         auto action = fmt::format(L"{}::OnEnter", Utils::GetStateName(aStateType));
         return Run(action, state->onEnter, aApp);
     }
@@ -88,6 +112,7 @@ bool StateSystem::OnExit(RED4ext::EGameStateType aStateType, RED4ext::CGameAppli
     State* state = GetStateByType(aStateType);
     if (state)
     {
+        WriteMilestone("EXIT", aStateType);
         auto action = fmt::format(L"{}::OnExit", Utils::GetStateName(aStateType));
         return Run(action, state->onExit, aApp);
     }

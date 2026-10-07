@@ -1,0 +1,48 @@
+#!/bin/bash
+# Build, sign, install, and test in one step (RESUME_PLAN T.7).
+#
+#   tools/cp-dev <scenario> [--plugins] [cp-run options...]
+#
+# Builds RED4ext (Release, Frida Gum off), and with --plugins also ArchiveXL, TweakXL and ModMenu from
+# their sibling repos. Signs every dylib explicitly, installs into the game's red4ext/ directory with the
+# canonical address DB, then runs tools/cp-run <scenario>.
+set -euo pipefail
+
+SCENARIO=${1:?usage: cp-dev <scenario> [--plugins] [cp-run options...]}
+shift
+PLUGINS=0
+if [[ "${1:-}" == --plugins ]]; then PLUGINS=1; shift; fi
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$TOOLS_DIR/.." && pwd)"
+WS="$(cd "$ROOT/.." && pwd)"
+GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
+R4E_DIR="$GAME_DIR/red4ext"
+BUILD="$ROOT/build-dev"
+
+build() { # <source dir> <build dir>
+    cmake -S "$1" -B "$2" -DCMAKE_BUILD_TYPE=Release -DRED4EXT_USE_FRIDA_GUM=OFF >/dev/null
+    cmake --build "$2" -j "$(sysctl -n hw.ncpu)" >"$2.log" 2>&1 || { tail -20 "$2.log"; exit 1; }
+}
+
+echo "[cp-dev] building RED4ext"
+build "$ROOT" "$BUILD"
+mkdir -p "$R4E_DIR/bin/x64" "$R4E_DIR/plugins"
+install -m 755 "$BUILD/libs/RED4ext.dylib" "$R4E_DIR/RED4ext.dylib"
+"$ROOT/scripts/codesign_macos.sh" dylib "$R4E_DIR/RED4ext.dylib"
+cp "$ROOT/deps/red4ext.sdk/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.json"
+rm -f "$R4E_DIR/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.loader.json"
+
+if [[ $PLUGINS -eq 1 ]]; then
+    for p in "ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib" "TweakXL:cp2077-tweak-xl:TweakXL.dylib" \
+        "ModMenu:cp2077-modmenu:libModMenu.dylib"; do
+        IFS=: read -r name repo lib <<<"$p"
+        echo "[cp-dev] building $name"
+        build "$WS/$repo" "$WS/$repo/build-dev"
+        mkdir -p "$R4E_DIR/plugins/$name"
+        install -m 755 "$(find "$WS/$repo/build-dev" -maxdepth 2 -name "$lib" | head -1)" "$R4E_DIR/plugins/$name/$name.dylib"
+        "$ROOT/scripts/codesign_macos.sh" dylib "$R4E_DIR/plugins/$name/$name.dylib"
+    done
+fi
+
+exec "$TOOLS_DIR/cp-run" "$SCENARIO" "$@"

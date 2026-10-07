@@ -1,0 +1,16 @@
+#!/bin/bash
+# Restore the stock CDPR-signed game executable (RESUME_PLAN 1B.2).
+# Undoes scripts/codesign_macos.sh exe. Steam "Verify integrity" does the same.
+set -euo pipefail
+
+GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
+ORIG="$GAME_DIR/Cyberpunk2077.orig"
+EXE="$GAME_DIR/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077"
+
+[[ -f "$ORIG" ]] || { echo "no stock binary at $ORIG" >&2; exit 1; }
+codesign -dv "$ORIG" 2>&1 | grep -q "TeamIdentifier=PL47UP47QQ" || { echo "$ORIG is not CDPR-signed; refusing" >&2; exit 1; }
+pgrep -x Cyberpunk2077 >/dev/null && { echo "the game is running" >&2; exit 1; }
+
+cp -p "$ORIG" "$EXE"
+codesign -dv "$EXE" 2>&1 | grep -E "^(Identifier|TeamIdentifier|CodeDirectory)"
+echo "restored stock executable"

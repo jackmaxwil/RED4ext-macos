@@ -1,0 +1,205 @@
+#!/bin/bash
+# Unattended Cyberpunk 2077 test run (RESUME_PLAN Phase T).
+#
+#   tools/cp-run <scenario> [--timeout SECONDS] [--keep-settings]
+#
+# Scenarios:
+#   boot      RED4ext only, core hook allowlist from $CP_CORE_HOOKS (default: CGameApplication_AddState).
+#             Pass = every installed hook has hits >= 1, Running state entered, no crash report.
+#   <other>   Plugins enabled, CP_AUTOTEST=<scenario>; pass also requires red4ext/logs/results.json "pass": true.
+#
+# Launches the game binary directly with RED4ext injected (never FridaGadget), in a 1280x720 window.
+# The user's UserSettings.json and red4ext/config.ini are backed up and restored on any exit.
+# Artifacts go to RED4ext/runs/<timestamp>-<scenario>/. Exit: 0 pass, 1 fail, 2 precondition error.
+set -euo pipefail
+
+SCENARIO=${1:?usage: cp-run <scenario> [--timeout SECONDS] [--keep-settings]}
+shift
+TIMEOUT=""
+KEEP_SETTINGS=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --timeout) TIMEOUT=$2; shift 2 ;;
+    --keep-settings) KEEP_SETTINGS=1; shift ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+    esac
+done
+case "$SCENARIO" in
+boot) : "${TIMEOUT:=120}" ;;
+soak) : "${TIMEOUT:=3900}" ;;
+*) : "${TIMEOUT:=300}" ;;
+esac
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
+GAME_BIN="$GAME_DIR/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077"
+R4E_DIR="$GAME_DIR/red4ext"
+LOGS_DIR="$R4E_DIR/logs"
+SETTINGS="$HOME/Library/Application Support/CD Projekt Red/Cyberpunk 2077/UserSettings.json"
+RUN_DIR="$TOOLS_DIR/../runs/$(date +%Y%m%d-%H%M%S)-$SCENARIO"
+mkdir -p "$RUN_DIR/backup"
+
+say() { echo "[cp-run] $*"; }
+die() { say "PRECONDITION: $*"; exit 2; }
+
+# --- preconditions --------------------------------------------------------------------------------
+[[ -x "$GAME_BIN" ]] || die "game binary not found: $GAME_BIN"
+[[ -f "$R4E_DIR/RED4ext.dylib" ]] || die "RED4ext.dylib not installed in $R4E_DIR (run tools/cp-dev)"
+pgrep -x Cyberpunk2077 >/dev/null && die "the game is already running"
+codesign -d --entitlements - "$GAME_BIN" 2>/dev/null | grep -q allow-unsigned-executable-memory ||
+    die "game binary lacks allow-unsigned-executable-memory; run: scripts/codesign_macos.sh exe \"$GAME_BIN\""
+if ! pgrep -x steam_osx >/dev/null; then
+    say "starting Steam"
+    open -ga Steam
+    for _ in $(seq 60); do pgrep -x steam_osx >/dev/null && break; sleep 2; done
+    pgrep -x steam_osx >/dev/null || die "Steam did not start"
+    sleep 15 # let the client finish logging in
+fi
+
+# --- backup + test profile ------------------------------------------------------------------------
+cp -p "$SETTINGS" "$RUN_DIR/backup/UserSettings.json"
+[[ -f "$R4E_DIR/config.ini" ]] && cp -p "$R4E_DIR/config.ini" "$RUN_DIR/backup/config.ini"
+GAME_PID=""
+restore() {
+    [[ -n "$GAME_PID" ]] && kill -9 "$GAME_PID" 2>/dev/null || true
+    if [[ $KEEP_SETTINGS -eq 0 ]]; then
+        cp -p "$RUN_DIR/backup/UserSettings.json" "$SETTINGS"
+    fi
+    if [[ -f "$RUN_DIR/backup/config.ini" ]]; then cp -p "$RUN_DIR/backup/config.ini" "$R4E_DIR/config.ini"; else rm -f "$R4E_DIR/config.ini"; fi
+}
+trap restore EXIT
+
+python3 - "$SETTINGS" <<'EOF'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+for g in d["data"]:
+    for o in g.get("options", []):
+        if g["group_name"] == "/video/display" and o["name"] == "WindowMode":
+            o["value"] = "Windowed"
+        if g["group_name"] == "/video/display" and o["name"] == "Resolution":
+            o["value"] = "1280x720"
+json.dump(d, open(p, "w"), indent=2)
+EOF
+
+if [[ "$SCENARIO" == boot ]]; then
+    PLUGINS_ENABLED=false
+    CORE_HOOKS=${CP_CORE_HOOKS:-CGameApplication_AddState}
+else
+    PLUGINS_ENABLED=true
+    CORE_HOOKS=${CP_CORE_HOOKS:-}
+fi
+core_list=""
+IFS=, read -ra hooks <<<"$CORE_HOOKS"
+for h in "${hooks[@]}"; do [[ -n "$h" ]] && core_list+="\"$h\", "; done
+cat >"$R4E_DIR/config.ini" <<EOF
+version = 0
+
+[dev]
+console = false
+wait_for_debugger = false
+strict_version_check = true
+
+[logging]
+flush_on = "debug"
+level = "debug"
+max_file_size = 10
+max_files = 5
+
+[plugins]
+enabled = $PLUGINS_ENABLED
+ignored = []
+
+[hooking]
+backend = "native_inline"
+core_hooks = [${core_list%, }]
+EOF
+
+# --- launch ---------------------------------------------------------------------------------------
+rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/results.json"
+[[ -x "$GAME_DIR/engine/tools/scc" ]] && "$GAME_DIR/engine/tools/scc" -compile "$GAME_DIR/r6/scripts" >"$RUN_DIR/scc.log" 2>&1 || true
+[[ -x "$GAME_DIR/engine/tools/inputloader.pl" ]] && "$GAME_DIR/engine/tools/inputloader.pl" >"$RUN_DIR/inputloader.log" 2>&1 || true
+
+START=$(date +%s)
+touch "$RUN_DIR/.start"
+say "launching ($SCENARIO, timeout ${TIMEOUT}s, core_hooks=[${CORE_HOOKS}], plugins=$PLUGINS_ENABLED)"
+(cd "$GAME_DIR" && CP_AUTOTEST="$SCENARIO" DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
+    exec "$GAME_BIN" -skipStartScreen >"$RUN_DIR/stdout.log" 2>&1) &
+GAME_PID=$!
+
+# --- watch ----------------------------------------------------------------------------------------
+shot() { # screenshot of the game window, if it has one
+    local id
+    id=$(swift "$TOOLS_DIR/window-id.swift" "$GAME_PID" 2>/dev/null || true)
+    [[ -n "$id" ]] && screencapture -x -o -l "$id" "$RUN_DIR/$1.png" 2>/dev/null || true
+}
+OUTCOME=timeout
+SHOT_AT=$((START + 60))
+while kill -0 "$GAME_PID" 2>/dev/null; do
+    now=$(date +%s)
+    if [[ -f "$LOGS_DIR/results.json" ]]; then OUTCOME=results; sleep 5; break; fi
+    if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
+    if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
+    sleep 2
+done
+if kill -0 "$GAME_PID" 2>/dev/null; then
+    shot final
+    kill -TERM "$GAME_PID" 2>/dev/null || true
+    for _ in $(seq 10); do kill -0 "$GAME_PID" 2>/dev/null || break; sleep 1; done
+    kill -9 "$GAME_PID" 2>/dev/null || true
+else
+    [[ $OUTCOME == timeout ]] && OUTCOME=exited
+fi
+wait "$GAME_PID" 2>/dev/null && EXIT_CODE=0 || EXIT_CODE=$?
+GAME_PID=""
+sleep 3 # let ReportCrash write the .ips
+
+# --- collect --------------------------------------------------------------------------------------
+cp "$LOGS_DIR"/{hookstats.json,milestones.log,results.json} "$RUN_DIR/" 2>/dev/null || true
+latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
+[[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
+find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
+find "$HOME/Library/Logs/DiagnosticReports" -name 'Cyberpunk2077*.ips' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
+
+# --- verdict --------------------------------------------------------------------------------------
+python3 - "$RUN_DIR" "$SCENARIO" "$OUTCOME" "$EXIT_CODE" <<'EOF'
+import glob, json, os, sys
+run, scenario, outcome, code = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+fails = []
+crashes = glob.glob(os.path.join(run, "*.ips"))
+if crashes:
+    fails.append(f"crash report: {os.path.basename(crashes[0])}")
+try:
+    stats = json.load(open(os.path.join(run, "hookstats.json")))
+    hooks = stats["hooks"]
+    if not hooks:
+        fails.append("hookstats.json lists no hooks")
+    for h in hooks:
+        if not h["installed"] or h["install_kr"] != 0:
+            fails.append(f"hook {h['name']} not installed (kr={h['install_kr']})")
+        elif h["hits"] < 1:
+            fails.append(f"hook {h['name']} installed but never hit")
+except (OSError, ValueError, KeyError) as e:
+    fails.append(f"hookstats.json missing or unreadable ({e})")
+try:
+    milestones = open(os.path.join(run, "milestones.log")).read()
+except OSError:
+    milestones = ""
+if "ENTER Running" not in milestones:
+    fails.append("Running state never entered (milestones.log)")
+if scenario != "boot":
+    try:
+        res = json.load(open(os.path.join(run, "results.json")))
+        if not res.get("pass"):
+            bad = [c.get("name") for c in res.get("checks", []) if not c.get("pass")]
+            fails.append(f"results.json pass=false {bad}")
+    except (OSError, ValueError) as e:
+        fails.append(f"results.json missing ({e})")
+verdict = "PASS" if not fails else "FAIL"
+summary = {"scenario": scenario, "verdict": verdict, "outcome": outcome, "exit_code": code, "failures": fails}
+json.dump(summary, open(os.path.join(run, "verdict.json"), "w"), indent=2)
+print(f"[cp-run] {verdict} {scenario} ({outcome}, exit {code}) -> {run}")
+for f in fails:
+    print(f"[cp-run]   - {f}")
+sys.exit(0 if verdict == "PASS" else 1)
+EOF
