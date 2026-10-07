@@ -39,3 +39,20 @@ protected cb func OnGameAttached() -> Bool {
     // Scenario-specific checks (tweakxl, archivexl, modmenu) are added in Phase 3.
     return result;
 }
+
+// The game pauses when its window loses focus; cp-run closes the pause menu (Esc) before in-world key checks.
+@wrapMethod(PauseMenuGameController)
+protected cb func OnInitialize() -> Bool {
+    let result = wrappedMethod();
+    CpReport("{\"event\":\"PAUSE_MENU\"}");
+    return result;
+}
+
+// The start screen ("press any key"). Pressing a key there loads the player profile and saves, so cp-run presses Space
+// as soon as this is reported (CP_PRESS_START=1) instead of skipping the screen.
+@wrapMethod(EngagementScreenGameController)
+protected cb func OnInitialize() -> Bool {
+    let result = wrappedMethod();
+    CpReport("{\"event\":\"START_SCREEN\"}");
+    return result;
+}

@@ -200,7 +200,7 @@ press_key() { # <macOS key code>: bring the game window to the front, then press
 OUTCOME=timeout
 SHOT_AT=$((START + 60))
 START_PRESSES=0
-NEXT_START_PRESS=$((START + 40))
+NEXT_START_PRESS=$START
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
     if [[ -f "$LOGS_DIR/autotest.log" ]] &&
@@ -210,8 +210,11 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         # before and after; CP_KEYCODE=<macOS virtual key code> presses that key in the game window in between
         # (needs Accessibility permission for the terminal).
         if [[ -n "${CP_WORLD_HOLD:-}" ]]; then
-            sleep "$CP_WORLD_HOLD"; shot hold-before
+            sleep "$CP_WORLD_HOLD"
             if [[ -n "${CP_KEYCODE:-}" ]]; then
+                # Close the pause menu first if focus loss opened it (last autotest event is PAUSE_MENU).
+                if tail -1 "$LOGS_DIR/autotest.log" | grep -q PAUSE_MENU; then press_key 53; sleep 2; fi
+                shot hold-before
                 press_key "$CP_KEYCODE"
                 sleep 3; shot hold-after
             fi
@@ -221,9 +224,11 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         break
     fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
+    # Press Space as soon as the start screen is up (and again every 10 s, at most 4 times, until a menu appears).
     if [[ -z "$START_ARGS" && $START_PRESSES -lt 4 && $now -ge $NEXT_START_PRESS ]] &&
+        grep -q START_SCREEN "$LOGS_DIR/autotest.log" 2>/dev/null &&
         ! grep -q MAIN_MENU "$LOGS_DIR/autotest.log" 2>/dev/null; then
-        press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 15))
+        sleep 2; press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 10))
     fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
     sleep 2

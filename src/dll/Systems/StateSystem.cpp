@@ -48,8 +48,17 @@ void TestReport(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, void*, int6
 
     if (const auto app = App::Get(); app && app->GetPaths())
     {
+        // Stamp JSON events with milliseconds since the epoch ("t") so a run's timeline can be read back.
+        std::string text = line.c_str();
+        if (!text.empty() && text.front() == '{')
+        {
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::system_clock::now().time_since_epoch())
+                                .count();
+            text.insert(1, fmt::format("\"t\":{},", ms));
+        }
         std::ofstream file(app->GetPaths()->GetLogsDir() / "autotest.log", std::ios::app);
-        file << line.c_str() << std::endl;
+        file << text << std::endl;
     }
 }
 
