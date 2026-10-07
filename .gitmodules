@@ -24,7 +24,8 @@
 	url = https://github.com/jac3km4/redscript
 [submodule "deps/simdjson"]
 	path = deps/simdjson
-	url = https://github.com/simdjson/simdjson.git
+	url = https://github.com/jackmaxwil/simdjson.git
+	branch = red4ext-macos
 [submodule "deps/fishhook"]
 	path = deps/fishhook
 	url = https://github.com/facebook/fishhook.git
