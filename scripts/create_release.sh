@@ -64,6 +64,6 @@ codesign -f -s - "$R4E/bin/red4ext_plugin_check"
 "$R4E/bin/red4ext_plugin_check" "$R4E/bin/x64/cyberpunk2077_addresses.json" "$R4E/plugins/"*/*.dylib
 
 cp "$ROOT/docs/INSTALL_MACOS.md" "$STAGE/INSTALL_MACOS.md"
-(cd "$OUT" && rm -f "$NAME.zip" && ditto -c -k --keepParent "$NAME" "$NAME.zip")
+(cd "$OUT" && rm -f "$NAME.zip" && ditto -c -k --norsrc --noextattr --noqtn --keepParent "$NAME" "$NAME.zip")
 shasum -a 256 "$OUT/$NAME.zip" | tee "$OUT/$NAME.zip.sha256"
 echo "[release] wrote $OUT/$NAME.zip"
