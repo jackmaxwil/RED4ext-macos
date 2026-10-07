@@ -151,7 +151,7 @@ mkdir -p "$GAME_DIR/red4ext/bin/x64"
 cp build/libs/RED4ext.dylib "$GAME_DIR/red4ext/"
 
 # Copy address database
-cp scripts/cyberpunk2077_addresses.json "$GAME_DIR/red4ext/bin/x64/"
+cp deps/red4ext.sdk/cyberpunk2077_addresses.json "$GAME_DIR/red4ext/bin/x64/"
 
 # Set up Frida (downloads ~50MB)
 ./scripts/setup_frida_gadget.sh

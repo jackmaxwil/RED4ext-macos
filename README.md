@@ -44,7 +44,7 @@ cd "~/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077"
 |------|---------|
 | `src/dll/` | Core loader: plugin loading, state machine, hooking |
 | `red4ext_hooks.js` | Frida hook definitions loaded at runtime |
-| `scripts/cyberpunk2077_addresses.json` | SDK address database (126 hashes) |
+| `deps/red4ext.sdk/cyberpunk2077_addresses.json` | Canonical address database (installed to `red4ext/bin/x64/`) |
 | `scripts/macos_install.sh` | One-command installer |
 | `launch_red4ext.sh` | Game launcher with DYLD injection |
 | `docs/STATUS.md` | Detailed port status |

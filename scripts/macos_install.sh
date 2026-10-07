@@ -212,16 +212,17 @@ install_files() {
         log_success "Installed Frida configuration"
     fi
     
-    # Install address files
-    if [[ -f "$SCRIPT_DIR/cyberpunk2077_addresses.json" ]]; then
-        cp -f "$SCRIPT_DIR/cyberpunk2077_addresses.json" "$bin_dir/"
+    # Install the single canonical address database (from the SDK submodule) and drop stale copies.
+    local sdk_db="$SCRIPT_DIR/../deps/red4ext.sdk/cyberpunk2077_addresses.json"
+    rm -f "$red4ext_dir/cyberpunk2077_addresses.json" "$bin_dir/cyberpunk2077_addresses.loader.json"
+    if [[ -f "$sdk_db" ]]; then
+        cp -f "$sdk_db" "$bin_dir/cyberpunk2077_addresses.json"
         log_success "Installed address database"
+    else
+        log_error "Address database not found at $sdk_db (run: git submodule update --init)"
+        return 1
     fi
-    if [[ -f "$SCRIPT_DIR/cyberpunk2077_addresses.loader.json" ]]; then
-        cp -f "$SCRIPT_DIR/cyberpunk2077_addresses.loader.json" "$bin_dir/"
-        log_success "Installed loader address database"
-    fi
-    
+
     # Generate symbol mappings if needed
     local symbols_file="$bin_dir/cyberpunk2077_symbols.json"
     if [[ ! -f "$symbols_file" ]]; then

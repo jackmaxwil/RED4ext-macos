@@ -79,16 +79,6 @@ Addresses::Addresses(const Paths& aPaths)
     constexpr auto filename = L"cyberpunk2077_addresses.json";
     auto filePath = aPaths.GetX64Dir() / filename;
 
-#ifdef RED4EXT_PLATFORM_MACOS
-    // Prefer loader-merged DB when present so loader-only hashes resolve without
-    // polluting the SDK DB used by plugins.
-    const auto loaderDb = aPaths.GetX64Dir() / L"cyberpunk2077_addresses.loader.json";
-    if (exists(loaderDb))
-    {
-        filePath = loaderDb;
-    }
-#endif
-
     LoadSections();
 #ifdef RED4EXT_PLATFORM_MACOS
     constexpr auto symbolsFilename = L"cyberpunk2077_symbols.json";

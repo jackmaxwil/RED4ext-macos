@@ -60,5 +60,5 @@ After game updates, regenerate addresses:
 ```bash
 python3 scripts/generate_addresses.py "/path/to/Cyberpunk2077" \
     --manual scripts/manual_addresses_template.json \
-    --output scripts/cyberpunk2077_addresses.json
+    --output deps/red4ext.sdk/cyberpunk2077_addresses.json
 ```
