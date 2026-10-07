@@ -238,27 +238,6 @@ LAUNCHER_EOF
     log_success "Installed launcher script"
 }
 
-create_config() {
-    local red4ext_dir="$1"
-    local config_file="$red4ext_dir/config.ini"
-    
-    if [[ -f "$config_file" ]]; then
-        return 0
-    fi
-    
-    cat > "$config_file" << 'CONFIG_EOF'
-[runtime]
-# Set to 1 to enable debug logging
-debug = 0
-
-[plugins]
-# Add plugin names to ignore (one per line)
-# ignored = PluginName
-CONFIG_EOF
-    
-    log_success "Created default config"
-}
-
 print_summary() {
     local game_dir="$1"
     
@@ -272,7 +251,8 @@ print_summary() {
     echo "  cd \"$game_dir\""
     echo "  ./launch_red4ext.sh"
     echo ""
-    echo "Or launch from Steam (mods will be active via DYLD injection)"
+    echo "Launching from Steam does NOT load mods (Steam does not pass DYLD_INSERT_LIBRARIES)."
+    echo "RED4ext writes a default red4ext/config.ini on first launch."
     echo ""
     echo "Log files: $game_dir/red4ext/logs/"
     echo "Plugins:   $game_dir/red4ext/plugins/"
@@ -329,7 +309,6 @@ main() {
     
     # Install files
     install_files "$game_dir"
-    create_config "$game_dir/red4ext"
     
     print_summary "$game_dir"
 }
