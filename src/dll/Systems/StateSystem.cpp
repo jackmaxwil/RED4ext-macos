@@ -2,6 +2,7 @@
 #include "StateSystem.hpp"
 #include "Utils.hpp"
 #include "App.hpp"
+#include "Platform/NativeHook.hpp"
 
 #include <chrono>
 #include <fstream>
@@ -119,6 +120,77 @@ void RunSdkSelfChecks()
     auto registered = hasVtable ? rtti->GetFunction(SelfCheckFunctionName) : nullptr;
     file << "CHECK native_function_registration " << (registered ? "pass" : "fail") << std::endl;
 }
+
+std::string JsonName(RED4ext::CName aName)
+{
+    std::string out;
+    for (const char* c = aName.ToString(); c && *c; ++c)
+    {
+        if (*c == '"' || *c == '\\')
+            out += '\\';
+        if (static_cast<unsigned char>(*c) >= 0x20)
+            out += *c;
+    }
+    return out;
+}
+
+// RED4EXT_DUMP_RTTI=1: write every native/scripted class's layout as the macOS game built it to
+// logs/rtti_layout_macos.json. Reads only what docs/re/reflection_layout.md confirmed from macOS code:
+// IRTTISystem::GetClasses (+0x70, takes the RTTI lock), the CBaseRTTIType virtuals, CClass parent @0x10, props @0x28,
+// flags @0x70, and CProperty type @0x00, name @0x08, valueOffset @0x20, flags @0x28. CClass::unk118 is a lazily built
+// cache (empty for unused classes) and is not read.
+void DumpRttiLayout()
+{
+    if (!std::getenv("RED4EXT_DUMP_RTTI"))
+        return;
+
+    auto rtti = RED4ext::CRTTISystem::Get();
+    if (!rtti || !*reinterpret_cast<void**>(rtti))
+        return;
+
+    RED4ext::DynArray<RED4ext::CClass*> classes;
+    rtti->GetClasses(nullptr, classes, nullptr, true);
+
+    std::map<std::string, const RED4ext::CBaseRTTIType*> types;
+    std::string body;
+    for (auto cls : classes)
+    {
+        if (!cls)
+            continue;
+        types.emplace(JsonName(cls->GetName()), cls);
+        body += fmt::format("{}\"{}\":{{\"parent\":\"{}\",\"size\":{},\"align\":{},\"flags\":{},\"props\":[",
+                            body.empty() ? "" : ",\n", JsonName(cls->GetName()),
+                            cls->parent ? JsonName(cls->parent->GetName()) : "", cls->GetSize(), cls->GetAlignment(),
+                            *reinterpret_cast<const uint32_t*>(&cls->flags));
+        for (uint32_t i = 0; i < cls->props.size; ++i)
+        {
+            auto prop = cls->props.entries[i];
+            if (!prop)
+                continue;
+            auto typeName = prop->type ? JsonName(prop->type->GetName()) : "";
+            if (prop->type)
+                types.emplace(typeName, prop->type);
+            body += fmt::format("{}{{\"name\":\"{}\",\"type\":\"{}\",\"offset\":{},\"flags\":{}}}", i ? "," : "",
+                                JsonName(prop->name), typeName, prop->valueOffset,
+                                *reinterpret_cast<const uint64_t*>(&prop->flags));
+        }
+        body += "]}";
+    }
+
+    std::string typeBody;
+    for (const auto& [name, type] : types)
+    {
+        typeBody += fmt::format("{}\"{}\":{{\"size\":{},\"align\":{},\"kind\":{}}}", typeBody.empty() ? "" : ",\n", name,
+                                type->GetSize(), type->GetAlignment(), static_cast<int>(type->GetType()));
+    }
+
+    char uuid[80]{};
+    NativeHook::MainImageUuid(uuid, sizeof(uuid));
+    const auto path = App::Get()->GetPaths()->GetLogsDir() / "rtti_layout_macos.json";
+    std::ofstream file(path, std::ios::trunc);
+    file << "{\"uuid\":\"" << uuid << "\",\n\"classes\":{\n" << body << "},\n\"types\":{\n" << typeBody << "}}\n";
+    Log::info("Wrote the RTTI layout of {} classes and {} types to {}", classes.size, types.size(), path.string());
+}
 } // namespace
 
 ESystemType StateSystem::GetType()
@@ -188,6 +260,7 @@ bool StateSystem::OnEnter(RED4ext::EGameStateType aStateType, RED4ext::CGameAppl
         if (aStateType == RED4ext::EGameStateType::Running)
         {
             RunSdkSelfChecks();
+            DumpRttiLayout();
         }
         auto action = fmt::format(L"{}::OnEnter", Utils::GetStateName(aStateType));
         return Run(action, state->onEnter, aApp);

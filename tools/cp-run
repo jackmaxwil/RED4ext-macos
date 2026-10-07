@@ -139,7 +139,7 @@ if [[ "$SCENARIO" != boot ]]; then
 fi
 
 # --- launch ---------------------------------------------------------------------------------------
-rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.log"
+rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.log" "$LOGS_DIR/rtti_layout_macos.json"
 # Plugin scripts are compiled only for loaded plugins: a plugin's scripts declare its natives, and a declared native
 # that no loaded plugin registered makes the game fail to initialize the script data. scc takes one directory, so
 # enabled plugins' Scripts folders are staged under r6/scripts for the compile.
@@ -170,6 +170,8 @@ STEAM_APP_ID=""
 pgrep -q steam_osx && STEAM_APP_ID=1091500
 (cd "$GAME_DIR" || exit 2
     [[ -z "$STEAM_APP_ID" ]] || export SteamAppId=$STEAM_APP_ID SteamGameId=$STEAM_APP_ID
+    # rttidump: RED4ext writes logs/rtti_layout_macos.json when Running is entered (main menu checks then exit).
+    [[ "$SCENARIO" != rttidump ]] || export RED4EXT_DUMP_RTTI=1
     CP_AUTOTEST="$SCENARIO" DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
     exec "$GAME_BIN" -skipStartScreen >"$RUN_DIR/stdout.log" 2>&1) &
 GAME_PID=$!
@@ -205,7 +207,7 @@ GAME_PID=""
 for _ in $(seq 15); do find "$HOME/Library/Logs/DiagnosticReports" -name "Cyberpunk2077*.ips" -newer "$RUN_DIR/.start" | grep -q . && break; [[ $EXIT_CODE -eq 0 || $EXIT_CODE -eq 143 ]] && break; sleep 1; done # ReportCrash can take a few seconds
 
 # --- collect --------------------------------------------------------------------------------------
-cp "$LOGS_DIR"/{hookstats.json,milestones.log,autotest.log} "$RUN_DIR/" 2>/dev/null || true
+cp "$LOGS_DIR"/{hookstats.json,milestones.log,autotest.log,rtti_layout_macos.json} "$RUN_DIR/" 2>/dev/null || true
 latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
 [[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
 find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
