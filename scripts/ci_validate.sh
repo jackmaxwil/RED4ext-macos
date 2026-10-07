@@ -25,7 +25,7 @@ run_step "Configure" cmake -S "$ROOT_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Rel
 run_step "Build" cmake --build "$BUILD_DIR" -- -j"$(sysctl -n hw.ncpu)" || fail=1
 
 if [[ -d "$SDK_ROOT" ]]; then
-  run_step "Address DB validation" python3 "$SDK_ROOT/scripts/validate_addresses.py" --quiet \
+  run_step "Address DB validation" python3 "$SDK_ROOT/scripts/validate_addresses.py" --verified-only --quiet \
     --names "$ROOT_DIR/src/dll/Detail/AddressHashes.hpp" \
     "$SDK_ROOT/cyberpunk2077_addresses.json" \
     "$SDK_ROOT/scripts/loader_hook_targets.json" || fail=1

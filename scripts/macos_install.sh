@@ -217,7 +217,14 @@ GAME_BINARY="$SCRIPT_DIR/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077"
 echo "=== RED4ext macOS Launcher ==="
 
 
-# Compile REDscript
+# Compile REDscript, including installed plugins' scripts (staged under r6/scripts because scc takes one folder;
+# a plugin's scripts declare its natives, so they are only compiled while the plugin is installed).
+STAGE="$SCRIPT_DIR/r6/scripts/zz_red4ext_plugins"
+rm -rf "$STAGE"
+for dir in "$RED4EXT_DIR"/plugins/*/Scripts; do
+    [[ -d "$dir" ]] || continue
+    mkdir -p "$STAGE" && cp -R "$dir" "$STAGE/$(basename "$(dirname "$dir")")"
+done
 [[ -x "$SCRIPT_DIR/engine/tools/scc" ]] && "$SCRIPT_DIR/engine/tools/scc" -compile "$SCRIPT_DIR/r6/scripts" 2>&1 || true
 
 # Process input mappings

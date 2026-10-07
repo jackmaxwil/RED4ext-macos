@@ -44,8 +44,9 @@ for entry in $PLUGIN_TABLE; do
     install -m 755 "$(find "$WS/$repo/build-dev" -maxdepth 2 -name "$lib" | head -1)" "$R4E_DIR/plugins/$name/$name.dylib"
     "$ROOT/scripts/codesign_macos.sh" dylib "$R4E_DIR/plugins/$name/$name.dylib"
     if [[ "$scripts" != - ]]; then
-        rm -rf "$GAME_DIR/r6/scripts/$name"
-        cp -R "$WS/$repo/$scripts" "$GAME_DIR/r6/scripts/$name"
+        # Plugin scripts live with the plugin; cp-run compiles them only when the plugin is loaded.
+        rm -rf "$GAME_DIR/r6/scripts/$name" "$R4E_DIR/plugins/$name/Scripts"
+        cp -R "$WS/$repo/$scripts" "$R4E_DIR/plugins/$name/Scripts"
     fi
 done
 export CP_PLUGINS="${CP_PLUGINS:-$PLUGINS}"

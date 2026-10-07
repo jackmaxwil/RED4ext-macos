@@ -65,7 +65,7 @@ restore() {
         cp -p "$RUN_DIR/backup/UserSettings.json" "$SETTINGS"
     fi
     if [[ -f "$RUN_DIR/backup/config.ini" ]]; then cp -p "$RUN_DIR/backup/config.ini" "$R4E_DIR/config.ini"; else rm -f "$R4E_DIR/config.ini"; fi
-    rm -rf "$AUTOTEST_DIR"
+    rm -rf "$AUTOTEST_DIR" "$GAME_DIR/r6/scripts/zz_red4ext_plugins"
     cp -p "$RUN_DIR/backup"/final.redscripts* "$CACHE/"
 }
 trap restore EXIT
@@ -132,6 +132,18 @@ fi
 
 # --- launch ---------------------------------------------------------------------------------------
 rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.log"
+# Plugin scripts are compiled only for loaded plugins: a plugin's scripts declare its natives, and a declared native
+# that no loaded plugin registered makes the game fail to initialize the script data. scc takes one directory, so
+# enabled plugins' Scripts folders are staged under r6/scripts for the compile.
+STAGE="$GAME_DIR/r6/scripts/zz_red4ext_plugins"
+rm -rf "$STAGE"
+if [[ "$PLUGINS_ENABLED" == true ]]; then
+    IFS=, read -ra enabled <<<"$CP_PLUGINS"
+    for name in "${enabled[@]}"; do
+        [[ -d "$R4E_DIR/plugins/$name/Scripts" ]] || continue
+        mkdir -p "$STAGE" && cp -R "$R4E_DIR/plugins/$name/Scripts" "$STAGE/$name"
+    done
+fi
 [[ -x "$GAME_DIR/engine/tools/scc" ]] && "$GAME_DIR/engine/tools/scc" -compile "$GAME_DIR/r6/scripts" >"$RUN_DIR/scc.log" 2>&1 || true
 # Never launch into the game's "REDscript compilation has failed" dialog: fail the run with the compiler errors.
 if grep -q "Compilation failed" "$RUN_DIR/scc.log" 2>/dev/null; then
