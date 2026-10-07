@@ -102,7 +102,7 @@ bool v0::GameStates::Add(RED4ext::PluginHandle aHandle, RED4ext::EGameStateType 
     if (stateSystem->Add(plugin, aType, aState->OnEnter, aState->OnUpdate, aState->OnExit))
     {
         Log::trace(L"The request to add a '{}' state for '{}' has been successfully completed",
-                      Utils::GetStateName(aType), plugin->GetName());
+                   Utils::GetStateName(aType), plugin->GetName());
         return true;
     }
 

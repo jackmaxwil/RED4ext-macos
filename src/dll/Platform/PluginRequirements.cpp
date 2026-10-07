@@ -1,5 +1,5 @@
-#include "stdafx.hpp"
 #include "PluginRequirements.hpp"
+#include "stdafx.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <mach-o/loader.h>
@@ -76,7 +76,8 @@ void ScanData(const std::vector<char>& aData, std::size_t aOffset, std::size_t a
 }
 } // namespace
 
-std::optional<std::unordered_set<std::uint32_t>> PluginRequirements::CollectConstants(const std::filesystem::path& aPath)
+std::optional<std::unordered_set<std::uint32_t>> PluginRequirements::CollectConstants(
+    const std::filesystem::path& aPath)
 {
     std::ifstream file(aPath, std::ios::binary);
     if (!file)

@@ -1,7 +1,7 @@
-#include "lib/TestFramework.hpp"
-#include "lib/PerformanceBenchmark.hpp"
-#include "fixtures/MockGameBinary.hpp"
 #include "Platform/Hooking.hpp"
+#include "fixtures/MockGameBinary.hpp"
+#include "lib/PerformanceBenchmark.hpp"
+#include "lib/TestFramework.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 
@@ -9,7 +9,7 @@ BENCHMARK(HookCallOverhead, 1000000)
 {
     TestFramework::MockGameBinary game;
     void* target = game.CreateMockFunction("BenchFunction");
-    
+
     // This would measure hook call overhead
     // In real implementation, we'd attach a hook and measure the difference
     // For now, just call the function

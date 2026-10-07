@@ -1,7 +1,7 @@
-#include "stdafx.hpp"
 #include "PluginBase.hpp"
-#include "Utils.hpp"
 #include "Platform.hpp"
+#include "Utils.hpp"
+#include "stdafx.hpp"
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <dlfcn.h>
 #endif
@@ -37,7 +37,7 @@ bool PluginBase::Query()
     {
         const char* err = dlerror();
         Log::warn(L"Could not retrieve 'Query' function from '{}'. Error: '{}', path: '{}'", stem,
-                     err ? Utils::Widen(err) : L"Unknown error", path);
+                  err ? Utils::Widen(err) : L"Unknown error", path);
         return false;
     }
 #else
@@ -46,7 +46,7 @@ bool PluginBase::Query()
     {
         auto msg = Utils::FormatLastError();
         Log::warn(L"Could not retrieve 'Query' function from '{}'. Error code: {}, msg: '{}', path: '{}'", stem,
-                     GetLastError(), msg, path);
+                  GetLastError(), msg, path);
         return false;
     }
 #endif
@@ -64,7 +64,7 @@ bool PluginBase::Query()
     catch (...)
     {
         Log::warn(L"An unknown exception occured while calling 'Query' function exported by '{}'. Path: '{}'", stem,
-                     path);
+                  path);
         return false;
     }
 
@@ -116,14 +116,14 @@ bool PluginBase::Main(RED4ext::EMainReason aReason)
         catch (const std::exception& e)
         {
             Log::warn(L"An exception occured while calling 'Main' function with reason '{}', exported by '{}'",
-                         reasonStr, name);
+                      reasonStr, name);
             Log::warn(e.what());
             return false;
         }
         catch (...)
         {
             Log::warn(L"An unknown exception occured while calling 'Main' function with reason '{}', exported by '{}'",
-                         reasonStr, name);
+                      reasonStr, name);
             return false;
         }
     }

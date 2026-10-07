@@ -1,13 +1,13 @@
 #include "StructuredLogging.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
-#include <spdlog/spdlog.h>
-#include <spdlog/logger.h>
-#include <fmt/format.h>
-#include <mutex>
-#include <deque>
 #include <algorithm>
+#include <deque>
+#include <fmt/format.h>
 #include <iomanip>
+#include <mutex>
+#include <spdlog/logger.h>
+#include <spdlog/spdlog.h>
 #include <sstream>
 #include <unordered_set>
 
@@ -22,13 +22,27 @@ inline std::string EscapeJSON(const std::string& str)
     {
         switch (c)
         {
-        case '"': result += "\\\""; break;
-        case '\\': result += "\\\\"; break;
-        case '\b': result += "\\b"; break;
-        case '\f': result += "\\f"; break;
-        case '\n': result += "\\n"; break;
-        case '\r': result += "\\r"; break;
-        case '\t': result += "\\t"; break;
+        case '"':
+            result += "\\\"";
+            break;
+        case '\\':
+            result += "\\\\";
+            break;
+        case '\b':
+            result += "\\b";
+            break;
+        case '\f':
+            result += "\\f";
+            break;
+        case '\n':
+            result += "\\n";
+            break;
+        case '\r':
+            result += "\\r";
+            break;
+        case '\t':
+            result += "\\t";
+            break;
         default:
             if (c >= 0 && c < 32)
             {
@@ -58,7 +72,7 @@ inline std::string ToJSON(const std::string& key, bool value)
 {
     return fmt::format("\"{}\":{}", EscapeJSON(key), value ? "true" : "false");
 }
-}
+} // namespace SimpleJSON
 
 namespace Platform
 {
@@ -105,13 +119,20 @@ std::string LevelToString(spdlog::level::level_enum level)
 {
     switch (level)
     {
-    case spdlog::level::trace: return "TRACE";
-    case spdlog::level::debug: return "DEBUG";
-    case spdlog::level::info: return "INFO";
-    case spdlog::level::warn: return "WARN";
-    case spdlog::level::err: return "ERROR";
-    case spdlog::level::critical: return "CRITICAL";
-    default: return "UNKNOWN";
+    case spdlog::level::trace:
+        return "TRACE";
+    case spdlog::level::debug:
+        return "DEBUG";
+    case spdlog::level::info:
+        return "INFO";
+    case spdlog::level::warn:
+        return "WARN";
+    case spdlog::level::err:
+        return "ERROR";
+    case spdlog::level::critical:
+        return "CRITICAL";
+    default:
+        return "UNKNOWN";
     }
 }
 
@@ -149,21 +170,20 @@ void WriteJSONEntry(const LogEntry& entry)
 std::string FormatStructuredMessage(const LogEntry& entry)
 {
     std::ostringstream oss;
-    
+
     // Sequence number for easy reference
     oss << "[#" << entry.sequenceNumber << "] ";
-    
+
     // Timestamp (relative to start)
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        entry.timestamp - g_startTime).count();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(entry.timestamp - g_startTime).count();
     oss << "[+" << elapsed << "ms] ";
-    
+
     // Level
     oss << "[" << LevelToString(entry.level) << "] ";
-    
+
     // Category
     oss << entry.category << " ";
-    
+
     // Context info
     if (!entry.context.operation.empty() || !entry.context.component.empty())
     {
@@ -174,7 +194,8 @@ std::string FormatStructuredMessage(const LogEntry& entry)
         }
         if (!entry.context.component.empty())
         {
-            if (!entry.context.operation.empty()) oss << ",";
+            if (!entry.context.operation.empty())
+                oss << ",";
             oss << "comp:" << entry.context.component;
         }
         if (!entry.context.plugin.empty())
@@ -191,16 +212,16 @@ std::string FormatStructuredMessage(const LogEntry& entry)
         }
         oss << "} ";
     }
-    
+
     // Thread ID
     oss << "[tid:" << FormatThreadId(entry.threadId) << "] ";
-    
+
     // Message
     oss << entry.message;
-    
+
     return oss.str();
 }
-}
+} // namespace
 
 void Initialize(const std::string& aLogDir)
 {
@@ -209,7 +230,7 @@ void Initialize(const std::string& aLogDir)
     g_sequenceNumber = 0;
     g_logBuffer.clear();
     g_contextStack.clear();
-    
+
     LogMarker("SYSTEM_START", "RED4ext structured logging initialized");
 }
 
@@ -218,7 +239,7 @@ void SetJSONExport(bool aEnabled, const std::string& aJsonLogPath)
     std::lock_guard<std::mutex> lock(g_logMutex);
     g_jsonExportEnabled = aEnabled;
     g_jsonLogPath = aJsonLogPath;
-    
+
     if (aEnabled && !aJsonLogPath.empty())
     {
         g_jsonLogFile = std::make_unique<std::ofstream>(aJsonLogPath, std::ios::app);
@@ -250,8 +271,8 @@ void PushContext(const LogContext& aContext)
     g_contextStack.push_back(aContext);
 }
 
-void PushContext(const std::string& aOperation, const std::string& aComponent, 
-                 const std::string& aPlugin, void* aTarget, uint32_t aHash)
+void PushContext(const std::string& aOperation, const std::string& aComponent, const std::string& aPlugin,
+                 void* aTarget, uint32_t aHash)
 {
     LogContext ctx;
     ctx.operation = aOperation;
@@ -289,11 +310,11 @@ LogContext GetCurrentContext()
     return LogContext{};
 }
 
-void LogStructured(spdlog::level::level_enum aLevel, const std::string& aCategory, 
-                   const std::string& aMessage, const LogContext* aOverrideContext)
+void LogStructured(spdlog::level::level_enum aLevel, const std::string& aCategory, const std::string& aMessage,
+                   const LogContext* aOverrideContext)
 {
     std::lock_guard<std::mutex> lock(g_logMutex);
-    
+
     LogEntry entry;
     entry.level = aLevel;
     entry.category = aCategory;
@@ -301,7 +322,7 @@ void LogStructured(spdlog::level::level_enum aLevel, const std::string& aCategor
     entry.timestamp = std::chrono::steady_clock::now();
     entry.threadId = std::this_thread::get_id();
     entry.sequenceNumber = ++g_sequenceNumber;
-    
+
     // Use override context or current context stack
     if (aOverrideContext)
     {
@@ -311,20 +332,20 @@ void LogStructured(spdlog::level::level_enum aLevel, const std::string& aCategor
     {
         entry.context = g_contextStack.back();
     }
-    
+
     // Add to buffer
     g_logBuffer.push_back(entry);
     if (g_logBuffer.size() > kMaxLogBufferSize)
     {
         g_logBuffer.pop_front();
     }
-    
+
     // Write to JSON if enabled
     WriteJSONEntry(entry);
-    
+
     // Log to spdlog with structured format
     std::string formattedMsg = FormatStructuredMessage(entry);
-    
+
     switch (aLevel)
     {
     case spdlog::level::trace:
@@ -363,20 +384,18 @@ void LogMarker(const std::string& aMarkerName, const std::string& aDescription)
 
 void LogSectionStart(const std::string& aSectionName)
 {
-    LogStructured(spdlog::level::info, "[SECTION]", 
-                  fmt::format(">>> START: {} <<<", aSectionName));
+    LogStructured(spdlog::level::info, "[SECTION]", fmt::format(">>> START: {} <<<", aSectionName));
 }
 
 void LogSectionEnd(const std::string& aSectionName)
 {
-    LogStructured(spdlog::level::info, "[SECTION]", 
-                  fmt::format(">>> END: {} <<<", aSectionName));
+    LogStructured(spdlog::level::info, "[SECTION]", fmt::format(">>> END: {} <<<", aSectionName));
 }
 
 bool ExportToJSON(const std::string& aFilePath, size_t aMaxEntries)
 {
     std::lock_guard<std::mutex> lock(g_logMutex);
-    
+
     try
     {
         std::ofstream file(aFilePath);
@@ -384,22 +403,21 @@ bool ExportToJSON(const std::string& aFilePath, size_t aMaxEntries)
         {
             return false;
         }
-        
+
         file << "[\n";
-        
+
         size_t count = 0;
-        size_t startIdx = g_logBuffer.size() > aMaxEntries ? 
-                          g_logBuffer.size() - aMaxEntries : 0;
-        
+        size_t startIdx = g_logBuffer.size() > aMaxEntries ? g_logBuffer.size() - aMaxEntries : 0;
+
         for (size_t i = startIdx; i < g_logBuffer.size(); ++i)
         {
             const auto& entry = g_logBuffer[i];
-            
+
             if (count > 0)
             {
                 file << ",\n";
             }
-            
+
             std::ostringstream oss;
             oss << "  {\n";
             oss << "    " << SimpleJSON::ToJSON("sequence", entry.sequenceNumber) << ",\n";
@@ -419,11 +437,11 @@ bool ExportToJSON(const std::string& aFilePath, size_t aMaxEntries)
             oss << "      " << SimpleJSON::ToJSON("timestamp", FormatTimestamp(entry.context.timestamp)) << "\n";
             oss << "    }\n";
             oss << "  }";
-            
+
             file << oss.str();
             count++;
         }
-        
+
         file << "\n]\n";
         return true;
     }
@@ -436,17 +454,17 @@ bool ExportToJSON(const std::string& aFilePath, size_t aMaxEntries)
 LogSummary GenerateSummary()
 {
     std::lock_guard<std::mutex> lock(g_logMutex);
-    
+
     LogSummary summary;
     summary.startTime = g_startTime;
     summary.endTime = std::chrono::steady_clock::now();
     summary.totalEntries = g_logBuffer.size();
-    
+
     std::unordered_map<std::string, LogSummary::ErrorSummary> errorMap;
     std::unordered_map<std::string, LogSummary::WarningSummary> warningMap;
     std::unordered_set<std::string> operations;
     std::unordered_set<std::string> components;
-    
+
     for (const auto& entry : g_logBuffer)
     {
         if (entry.level == spdlog::level::err || entry.level == spdlog::level::critical)
@@ -468,7 +486,7 @@ LogSummary GenerateSummary()
             warn.message = entry.message;
             warn.count++;
         }
-        
+
         if (!entry.context.operation.empty())
         {
             operations.insert(entry.context.operation);
@@ -478,13 +496,13 @@ LogSummary GenerateSummary()
             components.insert(entry.context.component);
         }
     }
-    
+
     summary.errors.reserve(errorMap.size());
     for (const auto& [key, err] : errorMap)
     {
         summary.errors.push_back(err);
     }
-    
+
     summary.warnings.reserve(warningMap.size());
     for (const auto& [key, warn] : warningMap)
     {
@@ -492,14 +510,14 @@ LogSummary GenerateSummary()
     }
     summary.operations.assign(operations.begin(), operations.end());
     summary.components.assign(components.begin(), components.end());
-    
+
     return summary;
 }
 
 bool ExportSummaryToJSON(const std::string& aFilePath)
 {
     auto summary = GenerateSummary();
-    
+
     try
     {
         std::ofstream file(aFilePath);
@@ -507,19 +525,20 @@ bool ExportSummaryToJSON(const std::string& aFilePath)
         {
             return false;
         }
-        
+
         file << "{\n";
         file << "  " << SimpleJSON::ToJSON("total_entries", summary.totalEntries) << ",\n";
         file << "  " << SimpleJSON::ToJSON("error_count", summary.errorCount) << ",\n";
         file << "  " << SimpleJSON::ToJSON("warning_count", summary.warningCount) << ",\n";
         file << "  " << SimpleJSON::ToJSON("start_time", FormatTimestamp(summary.startTime)) << ",\n";
         file << "  " << SimpleJSON::ToJSON("end_time", FormatTimestamp(summary.endTime)) << ",\n";
-        
+
         file << "  \"errors\":[\n";
         for (size_t i = 0; i < summary.errors.size(); ++i)
         {
             const auto& err = summary.errors[i];
-            if (i > 0) file << ",\n";
+            if (i > 0)
+                file << ",\n";
             file << "    {\n";
             file << "      " << SimpleJSON::ToJSON("category", err.category) << ",\n";
             file << "      " << SimpleJSON::ToJSON("message", err.message) << ",\n";
@@ -527,19 +546,21 @@ bool ExportSummaryToJSON(const std::string& aFilePath)
             file << "      \"sequence_numbers\":[";
             for (size_t j = 0; j < err.sequenceNumbers.size(); ++j)
             {
-                if (j > 0) file << ",";
+                if (j > 0)
+                    file << ",";
                 file << err.sequenceNumbers[j];
             }
             file << "]\n";
             file << "    }";
         }
         file << "\n  ],\n";
-        
+
         file << "  \"warnings\":[\n";
         for (size_t i = 0; i < summary.warnings.size(); ++i)
         {
             const auto& warn = summary.warnings[i];
-            if (i > 0) file << ",\n";
+            if (i > 0)
+                file << ",\n";
             file << "    {\n";
             file << "      " << SimpleJSON::ToJSON("category", warn.category) << ",\n";
             file << "      " << SimpleJSON::ToJSON("message", warn.message) << ",\n";
@@ -547,23 +568,25 @@ bool ExportSummaryToJSON(const std::string& aFilePath)
             file << "    }";
         }
         file << "\n  ],\n";
-        
+
         file << "  \"operations\":[";
         for (size_t i = 0; i < summary.operations.size(); ++i)
         {
-            if (i > 0) file << ",";
+            if (i > 0)
+                file << ",";
             file << "\"" << SimpleJSON::EscapeJSON(summary.operations[i]) << "\"";
         }
         file << "],\n";
-        
+
         file << "  \"components\":[";
         for (size_t i = 0; i < summary.components.size(); ++i)
         {
-            if (i > 0) file << ",";
+            if (i > 0)
+                file << ",";
             file << "\"" << SimpleJSON::EscapeJSON(summary.components[i]) << "\"";
         }
         file << "]\n";
-        
+
         file << "}\n";
         return true;
     }
@@ -577,13 +600,13 @@ void Shutdown()
 {
     std::lock_guard<std::mutex> lock(g_logMutex);
     LogMarker("SYSTEM_END", "RED4ext structured logging shutting down");
-    
+
     if (g_jsonLogFile && g_jsonLogFile->is_open())
     {
         g_jsonLogFile->close();
     }
     g_jsonLogFile.reset();
 }
-}
-}
+} // namespace StructuredLogging
+} // namespace Platform
 #endif

@@ -3,9 +3,9 @@
 #include "App.hpp"
 #include "Detail/AddressHashes.hpp"
 #include "Hook.hpp"
+#include "Platform.hpp"
 #include "ScriptCompiler/ScriptCompilerSettings.hpp"
 #include "Systems/ScriptCompilationSystem.hpp"
-#include "Platform.hpp"
 #ifndef RED4EXT_PLATFORM_MACOS
 #include <windows.h>
 #endif
@@ -28,12 +28,11 @@ bool _Global_ExecuteProcess(void* a1, RED4ext::CString& aCommand, FixedWString& 
     // On macOS, the script compiler is likely "scc" instead of "scc.exe"
     const char* sccExeName = "scc.exe";
     const char* sccName = "scc";
-    bool isScc = (strstr(aCommand.c_str(), sccExeName) != nullptr) || 
-                 (strstr(aCommand.c_str(), sccName) != nullptr);
+    bool isScc = (strstr(aCommand.c_str(), sccExeName) != nullptr) || (strstr(aCommand.c_str(), sccName) != nullptr);
 #else
     bool isScc = (strstr(aCommand.c_str(), "scc.exe") != nullptr);
 #endif
-    
+
     if (!isScc)
     {
         return Global_ExecuteProcess(a1, aCommand, aArgs, aCurrentDirectory, a5);

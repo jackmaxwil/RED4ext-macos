@@ -1,14 +1,14 @@
 #include "ThreadSafety.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
+#include <chrono>
+#include <fmt/format.h>
+#include <mutex>
+#include <spdlog/spdlog.h>
+#include <sstream>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
-#include <mutex>
-#include <chrono>
-#include <sstream>
-#include <spdlog/spdlog.h>
-#include <fmt/format.h>
 
 namespace Platform
 {
@@ -20,7 +20,7 @@ std::atomic<std::thread::id> g_mainThreadId{std::this_thread::get_id()};
 std::mutex g_operationMutex;
 std::unordered_map<void*, ThreadContext> g_activeOperations;
 std::atomic<uint64_t> g_operationCounter{0};
-}
+} // namespace
 
 bool IsMainThread()
 {
@@ -45,7 +45,7 @@ bool ValidateHookThreadSafety(void* aTarget, const char* aOperation)
     }
 
     std::lock_guard<std::mutex> lock(g_operationMutex);
-    
+
     // Check if another operation is already in progress on this target
     auto it = g_activeOperations.find(aTarget);
     if (it != g_activeOperations.end())
@@ -56,9 +56,10 @@ bool ValidateHookThreadSafety(void* aTarget, const char* aOperation)
             std::ostringstream tid1, tid2;
             tid1 << std::this_thread::get_id();
             tid2 << existing.threadId;
-            spdlog::warn("[ThreadSafety] Potential race condition: {} on {} from thread {} while {} is active from thread {}", 
-                        aOperation, fmt::ptr(aTarget), tid1.str(), 
-                        existing.operation ? existing.operation : "unknown", tid2.str());
+            spdlog::warn(
+                "[ThreadSafety] Potential race condition: {} on {} from thread {} while {} is active from thread {}",
+                aOperation, fmt::ptr(aTarget), tid1.str(), existing.operation ? existing.operation : "unknown",
+                tid2.str());
             return false;
         }
     }
@@ -74,7 +75,7 @@ void RecordHookOperation(void* aTarget, const char* aOperation, bool aSuccess)
     }
 
     std::lock_guard<std::mutex> lock(g_operationMutex);
-    
+
     if (aSuccess)
     {
         // Remove from active operations
@@ -94,16 +95,16 @@ void RecordHookOperation(void* aTarget, const char* aOperation, bool aSuccess)
 RaceConditionCheck CheckForRaceConditions()
 {
     RaceConditionCheck result;
-    
+
     std::lock_guard<std::mutex> lock(g_operationMutex);
-    
+
     // Check for operations from different threads on same target
     std::unordered_map<void*, std::vector<ThreadContext>> targetsByThread;
     for (const auto& [target, ctx] : g_activeOperations)
     {
         targetsByThread[target].push_back(ctx);
     }
-    
+
     for (const auto& [target, contexts] : targetsByThread)
     {
         if (contexts.size() > 1)
@@ -113,23 +114,22 @@ RaceConditionCheck CheckForRaceConditions()
             {
                 threadIds.insert(ctx.threadId);
             }
-            
+
             if (threadIds.size() > 1)
             {
                 result.hasRaceCondition = true;
                 result.reason = fmt::format("Multiple threads operating on target {}", fmt::ptr(target));
                 for (const auto& ctx : contexts)
                 {
-            std::ostringstream tid;
-            tid << ctx.threadId;
-            std::string opStr = ctx.operation ? ctx.operation : "unknown";
-            result.conflictingOperations.push_back(
-                fmt::format("{} from thread {}", opStr, tid.str()));
+                    std::ostringstream tid;
+                    tid << ctx.threadId;
+                    std::string opStr = ctx.operation ? ctx.operation : "unknown";
+                    result.conflictingOperations.push_back(fmt::format("{} from thread {}", opStr, tid.str()));
                 }
             }
         }
     }
-    
+
     return result;
 }
 
@@ -173,11 +173,10 @@ void HookOperationGuard::MarkFailure(const std::string& aReason)
         RecordHookOperation(m_target, m_operation, false);
         std::ostringstream tid;
         tid << std::this_thread::get_id();
-        spdlog::error("[ThreadSafety] Hook operation '{}' on {} failed: {}", 
-                     m_operation, fmt::ptr(m_target), aReason);
+        spdlog::error("[ThreadSafety] Hook operation '{}' on {} failed: {}", m_operation, fmt::ptr(m_target), aReason);
         m_completed = true;
     }
 }
-}
-}
+} // namespace ThreadSafety
+} // namespace Platform
 #endif

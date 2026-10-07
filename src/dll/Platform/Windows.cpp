@@ -48,6 +48,6 @@ void TerminateProcess()
 {
     ::TerminateProcess(::GetCurrentProcess(), 1);
 }
-}
+} // namespace Platform
 
 #endif

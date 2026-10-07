@@ -17,7 +17,8 @@ namespace NativeHook
 {
 
 inline constexpr const char* kRefuseCodeWritesFormat =
-    "Refusing native code writes: address DB mismatch (db_version='%s' image_version='%s' db_uuid='%s' image_uuid='%s')";
+    "Refusing native code writes: address DB mismatch (db_version='%s' image_version='%s' db_uuid='%s' "
+    "image_uuid='%s')";
 
 // Attach failures. -1 remains the generic failure (closed transaction, duplicate, protect).
 inline constexpr int32_t kErrNotFunctionStart = -2;

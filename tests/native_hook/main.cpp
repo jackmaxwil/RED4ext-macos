@@ -100,9 +100,8 @@ static void TestRelocator()
     const uint64_t src = 0x10000;
     const uint64_t dst = 0x20000;
     const uint32_t opcodes[] = {
-        0x10000000u, 0x90000000u, 0x14000003u, 0x94000003u, 0x54000000u, 0x34000060u, 0x35000060u,
-        0x36000000u, 0x37000000u, 0x18000040u, 0x58000040u, 0x98000040u, 0x1C000040u, 0x5C000040u,
-        0x9C000040u, 0xD8000040u,
+        0x10000000u, 0x90000000u, 0x14000003u, 0x94000003u, 0x54000000u, 0x34000060u, 0x35000060u, 0x36000000u,
+        0x37000000u, 0x18000040u, 0x58000040u, 0x98000040u, 0x1C000040u, 0x5C000040u, 0x9C000040u, 0xD8000040u,
     };
 
     for (uint32_t instr : opcodes)
@@ -374,8 +373,8 @@ static void TestHookStats()
 static void TestRefuseWrites()
 {
     char line[640];
-    const bool allowed = NativeHook::AllowWrites("1.0.0", "", "9.9.9", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", true,
-                                                  line, sizeof(line));
+    const bool allowed =
+        NativeHook::AllowWrites("1.0.0", "", "9.9.9", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", true, line, sizeof(line));
     CHECK(!allowed);
     const char* expected = "Refusing native code writes: address DB mismatch (db_version='1.0.0' image_version='9.9.9' "
                            "db_uuid='' image_uuid='AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE')";
@@ -632,10 +631,10 @@ static uint64_t PassU64v()
 
 static void KeepFarSymbols()
 {
-    void* keep[] = {reinterpret_cast<void*>(NhAddNext),  reinterpret_cast<void*>(NhAdrNext),
-                    reinterpret_cast<void*>(NhAdrpNext), reinterpret_cast<void*>(NhLdrNext),
+    void* keep[] = {reinterpret_cast<void*>(NhAddNext),   reinterpret_cast<void*>(NhAdrNext),
+                    reinterpret_cast<void*>(NhAdrpNext),  reinterpret_cast<void*>(NhLdrNext),
                     reinterpret_cast<void*>(NhShortNext), reinterpret_cast<void*>(NhBackNext),
-                    reinterpret_cast<void*>(NhBadNext),  reinterpret_cast<void*>(NhStructNext)};
+                    reinterpret_cast<void*>(NhBadNext),   reinterpret_cast<void*>(NhStructNext)};
     std::atomic<void*> sink{keep[0]};
     (void)sink;
     (void)keep;
@@ -835,8 +834,8 @@ static void TestFarRefuse()
     CHECK(shortKr == NativeHook::kErrFunctionTooShort);
     CHECK(NhShort() == 5);
 
-    const int midKr = Refuse(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(NhAdd) + 4),
-                             reinterpret_cast<void*>(TextDetour));
+    const int midKr =
+        Refuse(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(NhAdd) + 4), reinterpret_cast<void*>(TextDetour));
     if (midKr != NativeHook::kErrNotFunctionStart)
     {
         std::printf("FAIL mid kr=%d\n", midKr);
@@ -876,8 +875,9 @@ static void TestFarStruct()
     g_structOrig = NhStruct;
     void* slot = reinterpret_cast<void*>(g_structOrig);
     CHECK(FarAttach(&slot, reinterpret_cast<void*>(StructDetour)) == 0);
-    g_structOrig = reinterpret_cast<NhBig (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-                                              uint64_t)>(slot);
+    g_structOrig =
+        reinterpret_cast<NhBig (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)>(
+            slot);
     const NhBig hooked = NhStruct(10, 20, 30, 40, 50, 60, 70, 80);
     CHECK(hooked.v[0] == 11 && hooked.v[1] == 20 && hooked.v[2] == 30 && hooked.v[3] == 40);
     CHECK(hooked.v[4] == 50 && hooked.v[5] == 60 && hooked.v[6] == 70 && hooked.v[7] == 80);

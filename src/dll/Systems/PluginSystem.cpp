@@ -1,7 +1,7 @@
 #include "PluginSystem.hpp"
 #include "Addresses.hpp"
-#include "Platform/PluginRequirements.hpp"
 #include "Image.hpp"
+#include "Platform/PluginRequirements.hpp"
 #include "Utils.hpp"
 #include "Version.hpp"
 #include "v0/Plugin.hpp"
@@ -233,7 +233,7 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
             // But we can try to load from the plugin's directory first
             // For now, just use RTLD_GLOBAL
         }
-        
+
         // Fail closed: a plugin is loaded only if every address-DB hash compiled into it resolves. A plugin that
         // starts with some of its addresses missing fails half-way and can take the game down with it.
         const auto constants = PluginRequirements::CollectConstants(aPath);
@@ -263,8 +263,8 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
         if (!h)
         {
             const char* err = dlerror();
-            Log::warn(L"Could not load plugin '{}'. Error: '{}', path: '{}'", stem, 
-                        err ? Utils::Widen(err) : L"Unknown error", aPath);
+            Log::warn(L"Could not load plugin '{}'. Error: '{}', path: '{}'", stem,
+                      err ? Utils::Widen(err) : L"Unknown error", aPath);
             return;
         }
         handle.reset(h);
@@ -285,7 +285,7 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
     {
         auto msg = Utils::FormatLastError();
         Log::warn(L"Could not load plugin '{}'. Error code: {}, msg: '{}', path: '{}'", stem, GetLastError(), msg,
-                     aPath);
+                  aPath);
         return;
     }
 #endif
@@ -341,10 +341,10 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
     if (pluginSdk < MINIMUM_SDK_VERSION || pluginSdk > LATEST_SDK_VERSION)
     {
         Log::warn(L"{} (version: {}) uses RED4ext.SDK v{} which is not supported by RED4ext v{}. If you are the "
-                     L"plugin's author, recompile the plugin with a version of RED4ext.SDK that meets the following "
-                     L"criteria: RED4ext.SDK >= {} && RED4ext.SDK <= {}",
-                     pluginName, std::to_wstring(pluginVersion), std::to_wstring(pluginSdk), TEXT(RED4EXT_VERSION_STR),
-                     std::to_wstring(MINIMUM_SDK_VERSION), std::to_wstring(LATEST_SDK_VERSION));
+                  L"plugin's author, recompile the plugin with a version of RED4ext.SDK that meets the following "
+                  L"criteria: RED4ext.SDK >= {} && RED4ext.SDK <= {}",
+                  pluginName, std::to_wstring(pluginVersion), std::to_wstring(pluginSdk), TEXT(RED4EXT_VERSION_STR),
+                  std::to_wstring(MINIMUM_SDK_VERSION), std::to_wstring(LATEST_SDK_VERSION));
         return;
     }
 
@@ -360,7 +360,7 @@ void PluginSystem::Load(const std::filesystem::path& aPath, bool aUseAlteredSear
     }
 
     Log::info(L"{} (version: {}, author(s): {}) has been loaded", pluginName, std::to_wstring(pluginVersion),
-                 plugin->GetAuthor());
+              plugin->GetAuthor());
 }
 
 PluginSystem::MapIter_t PluginSystem::Unload(std::shared_ptr<PluginBase> aPlugin)
@@ -393,8 +393,8 @@ std::shared_ptr<PluginBase> PluginSystem::CreatePlugin(const std::filesystem::pa
         if (err != ERROR_PROC_NOT_FOUND)
         {
             auto msg = Utils::FormatLastError();
-            Log::warn(L"Could not retrieve 'Supports' function from '{}'. Error code: {}, msg: '{}', path: '{}'",
-                         stem, Platform::GetLastError(), msg, aPath);
+            Log::warn(L"Could not retrieve 'Supports' function from '{}'. Error code: {}, msg: '{}', path: '{}'", stem,
+                      Platform::GetLastError(), msg, aPath);
         }
 
         return nullptr;
@@ -409,15 +409,14 @@ std::shared_ptr<PluginBase> PluginSystem::CreatePlugin(const std::filesystem::pa
     }
     catch (const std::exception& e)
     {
-        Log::warn(L"An exception occurred while calling 'Supports' function exported by '{}'. Path: '{}'", stem,
-                     aPath);
+        Log::warn(L"An exception occurred while calling 'Supports' function exported by '{}'. Path: '{}'", stem, aPath);
         Log::warn(e.what());
         return nullptr;
     }
     catch (...)
     {
-        Log::warn(L"An unknown exception occurred while calling 'Supports' function exported by '{}'. Path: '{}'",
-                     stem, aPath);
+        Log::warn(L"An unknown exception occurred while calling 'Supports' function exported by '{}'. Path: '{}'", stem,
+                  aPath);
         return nullptr;
     }
 

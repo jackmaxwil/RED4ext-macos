@@ -139,22 +139,22 @@ private:
             MemoryProtection _(addr, size, Platform::Memory_ReadWrite);
 
             auto onEnter = &vtbl[OnEnterSlot];
-            Log::trace("Changing 'OnEnter' function at {} from {} to {}...", fmt::ptr(onEnter), fmt::ptr(vtbl[OnEnterSlot]),
-                          fmt::ptr(aOnEnter));
+            Log::trace("Changing 'OnEnter' function at {} from {} to {}...", fmt::ptr(onEnter),
+                       fmt::ptr(vtbl[OnEnterSlot]), fmt::ptr(aOnEnter));
 
             *onEnter = aOnEnter;
             Log::trace("'OnEnter' function was changed successfully");
 
             auto onUpdate = &vtbl[OnEnterSlot + 1];
-            Log::trace("Changing 'OnUpdate' function at {} from {} to {}...", fmt::ptr(onUpdate), fmt::ptr(vtbl[OnEnterSlot + 1]),
-                          fmt::ptr(aOnUpdate));
+            Log::trace("Changing 'OnUpdate' function at {} from {} to {}...", fmt::ptr(onUpdate),
+                       fmt::ptr(vtbl[OnEnterSlot + 1]), fmt::ptr(aOnUpdate));
 
             *onUpdate = aOnUpdate;
             Log::trace("'OnUpdate' function was changed successfully");
 
             auto onExit = &vtbl[OnEnterSlot + 2];
-            Log::trace("Changing 'OnExit' function at {} from {} to {}...", fmt::ptr(onExit), fmt::ptr(vtbl[OnEnterSlot + 2]),
-                          fmt::ptr(aOnExit));
+            Log::trace("Changing 'OnExit' function at {} from {} to {}...", fmt::ptr(onExit),
+                       fmt::ptr(vtbl[OnEnterSlot + 2]), fmt::ptr(aOnExit));
 
             *onExit = aOnExit;
             Log::trace("'OnExit' function was changed successfully");
@@ -167,15 +167,15 @@ private:
         catch (const MemoryProtection::Exception&)
         {
             Log::warn("Could not change / restoring the protection for '{}' state, the execution will continue but "
-                         "unexpected behavior might happen",
-                         name);
+                      "unexpected behavior might happen",
+                      name);
             return false;
         }
         catch (const std::exception& e)
         {
             Log::warn("An exception occured while changing / restoring the virtual functions for '{}' state, the "
-                         "execution will continue but unexpected behavior might happen",
-                         name);
+                      "execution will continue but unexpected behavior might happen",
+                      name);
             Log::warn(e.what());
 
             return false;

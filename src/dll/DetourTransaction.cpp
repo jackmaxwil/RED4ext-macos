@@ -1,7 +1,7 @@
 #include "DetourTransaction.hpp"
-#include "Utils.hpp"
 #include "Platform.hpp"
 #include "Platform/Hooking.hpp"
+#include "Utils.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <mach/mach.h>
@@ -18,14 +18,14 @@ DetourTransaction::DetourTransaction(const std::source_location aSource)
     m_threadCount = 0;
 #endif
 
-    Log::trace("Trying to start a detour transaction in '{}' ({}:{})", m_source.function_name(),
-                  m_source.file_name(), m_source.line());
+    Log::trace("Trying to start a detour transaction in '{}' ({}:{})", m_source.function_name(), m_source.file_name(),
+               m_source.line());
 
     auto result = DetourTransactionBegin();
     if (result == NO_ERROR)
     {
         Log::trace("Transaction was started successfully", m_source.function_name(), m_source.file_name(),
-                      m_source.line());
+                   m_source.line());
 
         QueueThreadsForUpdate();
         SetState(State::Started);
@@ -33,7 +33,7 @@ DetourTransaction::DetourTransaction(const std::source_location aSource)
     else
     {
         Log::error("Could not start the detour transaction in '{}' ({}:{}). Detour error code: {}",
-                      m_source.function_name(), m_source.file_name(), m_source.line(), result);
+                   m_source.function_name(), m_source.file_name(), m_source.line(), result);
     }
 }
 
@@ -98,7 +98,7 @@ bool DetourTransaction::Commit()
         thread_resume(thread);
         mach_port_deallocate(mach_task_self(), thread);
     }
-    
+
     // Deallocate thread array and any threads we didn't suspend
     if (m_threadArray)
     {
@@ -122,12 +122,12 @@ bool DetourTransaction::Commit()
             }
         }
         mach_port_deallocate(mach_task_self(), selfThread);
-        vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(m_threadArray), 
-                     m_threadCount * sizeof(thread_t));
+        vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(m_threadArray),
+                      m_threadCount * sizeof(thread_t));
         m_threadArray = nullptr;
         m_threadCount = 0;
     }
-    
+
     m_threads.clear();
 #endif
 
@@ -187,7 +187,7 @@ bool DetourTransaction::Abort()
         thread_resume(thread);
         mach_port_deallocate(mach_task_self(), thread);
     }
-    
+
     // Deallocate thread array and any threads we didn't suspend
     if (m_threadArray)
     {
@@ -211,12 +211,12 @@ bool DetourTransaction::Abort()
             }
         }
         mach_port_deallocate(mach_task_self(), selfThread);
-        vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(m_threadArray), 
-                     m_threadCount * sizeof(thread_t));
+        vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(m_threadArray),
+                      m_threadCount * sizeof(thread_t));
         m_threadArray = nullptr;
         m_threadCount = 0;
     }
-    
+
     m_threads.clear();
 #endif
 
@@ -243,8 +243,8 @@ void DetourTransaction::QueueThreadsForUpdate()
     {
         auto msg = Utils::FormatLastError();
         Log::warn(L"Could not create a snapshot of the threads. The transaction will continue but unexpected "
-                     L"behavior might happen. Error code: {}, msg: '{}'",
-                     Platform::GetLastError(), msg);
+                  L"behavior might happen. Error code: {}, msg: '{}'",
+                  Platform::GetLastError(), msg);
         return;
     }
 
@@ -255,8 +255,8 @@ void DetourTransaction::QueueThreadsForUpdate()
     {
         auto msg = Utils::FormatLastError();
         Log::warn(L"Could not get the first thread entry from the snapshot. The transaction will continue but "
-                     L"unexpected behavior might happen. Error code: {}, msg: '{}'",
-                     Platform::GetLastError(), msg);
+                  L"unexpected behavior might happen. Error code: {}, msg: '{}'",
+                  Platform::GetLastError(), msg);
         return;
     }
 
@@ -280,16 +280,16 @@ void DetourTransaction::QueueThreadsForUpdate()
                 else
                 {
                     Log::warn(L"Could not queue the thread for update. The transaction will continue but unexpected "
-                                 L"behavior might happen. Thread ID: {}, handle: {}, detour error code: {}",
-                                 entry.th32ThreadID, handle.get(), result);
+                              L"behavior might happen. Thread ID: {}, handle: {}, detour error code: {}",
+                              entry.th32ThreadID, handle.get(), result);
                 }
             }
             else
             {
                 auto msg = Utils::FormatLastError();
                 Log::warn(L"Could not open a thread. The transaction will continue but unexpected behavior might "
-                             L"happen. Thread ID: {}, error code: {}, msg: '{}'",
-                             entry.th32ThreadID, Platform::GetLastError(), msg);
+                          L"happen. Thread ID: {}, error code: {}, msg: '{}'",
+                          entry.th32ThreadID, Platform::GetLastError(), msg);
             }
         }
 
@@ -298,8 +298,8 @@ void DetourTransaction::QueueThreadsForUpdate()
         {
             auto msg = Utils::FormatLastError();
             Log::warn(L"Could not get the next thread entry from the snapshot. The transaction will continue but "
-                         L"unexpected behavior might happen. Error code: {}, msg: '{}'",
-                         Platform::GetLastError(), msg);
+                      L"unexpected behavior might happen. Error code: {}, msg: '{}'",
+                      Platform::GetLastError(), msg);
         }
     } while (shouldContinue);
 

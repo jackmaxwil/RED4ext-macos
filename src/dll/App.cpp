@@ -50,8 +50,8 @@ bool RunNativeHookSelfTest()
     auto* targetFn = &NativeHookSelfTarget;
     void* original = reinterpret_cast<void*>(targetFn);
     DetourTransaction transaction;
-    if (!transaction.IsValid() ||
-        DetourAttach(&original, reinterpret_cast<void*>(&NativeHookSelfDetour)) != NO_ERROR || !transaction.Commit())
+    if (!transaction.IsValid() || DetourAttach(&original, reinterpret_cast<void*>(&NativeHookSelfDetour)) != NO_ERROR ||
+        !transaction.Commit())
     {
         Log::error("Native hook self-test could not install its detour");
         return false;
@@ -77,7 +77,7 @@ bool RunNativeHookSelfTest()
 }
 #endif
 
-}
+} // namespace
 
 App::App()
     : m_config(m_paths)
@@ -235,8 +235,7 @@ void App::Destruct()
         auto success = Hooks::CGameApplication::Detach() && Hooks::Main::Detach() && Hooks::ExecuteProcess::Detach() &&
                        Hooks::InitScripts::Detach() && Hooks::LoadScripts::Detach() &&
                        Hooks::ValidateScripts::Detach() && Hooks::AssertionFailed::Detach() &&
-                       Hooks::CollectSaveableSystems::Detach() &&
-                       Hooks::gsmState_SessionActive::Detach();
+                       Hooks::CollectSaveableSystems::Detach() && Hooks::gsmState_SessionActive::Detach();
 #else
         auto success = Hooks::CGameApplication::Detach() && Hooks::Main::Detach() && Hooks::ExecuteProcess::Detach() &&
                        Hooks::InitScripts::Detach() && Hooks::LoadScripts::Detach() &&
@@ -366,7 +365,7 @@ bool App::AttachHooks() const
     }
 
     // On macOS, attach hooks individually and continue even if some fail.
-    
+
     // A core hook is attempted only when its address is verified and, if the user set an allowlist, it is listed.
     const auto& allow = m_config.GetHooking().coreHooks;
     const auto addresses = Addresses::Instance();
@@ -384,63 +383,81 @@ bool App::AttachHooks() const
     int totalHooks = 1;
 
     // Always required: plugins are loaded from the game's main(), not from the dylib constructor.
-    if (Hooks::Main::Attach()) successCount++;
-    else Log::error("main() hook failed - plugins will not be loaded");
+    if (Hooks::Main::Attach())
+        successCount++;
+    else
+        Log::error("main() hook failed - plugins will not be loaded");
 
     if (enabled("CGameApplication_AddState", Hashes::CGameApplication_AddState))
     {
         totalHooks++;
-        if (Hooks::CGameApplication::Attach()) successCount++;
-        else Log::warn("CGameApplication hook failed - state management may be limited");
+        if (Hooks::CGameApplication::Attach())
+            successCount++;
+        else
+            Log::warn("CGameApplication hook failed - state management may be limited");
     }
 
     if (enabled("Global_ExecuteProcess", Hashes::Global_ExecuteProcess))
     {
         totalHooks++;
-        if (Hooks::ExecuteProcess::Attach()) successCount++;
-        else Log::warn("ExecuteProcess hook failed - script compilation redirection unavailable");
+        if (Hooks::ExecuteProcess::Attach())
+            successCount++;
+        else
+            Log::warn("ExecuteProcess hook failed - script compilation redirection unavailable");
     }
 
     if (enabled("CBaseEngine_InitScripts", Hashes::CBaseEngine_InitScripts))
     {
         totalHooks++;
-        if (Hooks::InitScripts::Attach()) successCount++;
-        else Log::warn("InitScripts hook failed - script initialization hooks unavailable");
+        if (Hooks::InitScripts::Attach())
+            successCount++;
+        else
+            Log::warn("InitScripts hook failed - script initialization hooks unavailable");
     }
 
     if (enabled("CBaseEngine_LoadScripts", Hashes::CBaseEngine_LoadScripts))
     {
         totalHooks++;
-        if (Hooks::LoadScripts::Attach()) successCount++;
-        else Log::warn("LoadScripts hook failed - script loading hooks unavailable");
+        if (Hooks::LoadScripts::Attach())
+            successCount++;
+        else
+            Log::warn("LoadScripts hook failed - script loading hooks unavailable");
     }
 
     if (enabled("ScriptValidator_Validate", Hashes::ScriptValidator_Validate))
     {
         totalHooks++;
-        if (Hooks::ValidateScripts::Attach()) successCount++;
-        else Log::warn("ValidateScripts hook failed - script validation hooks unavailable");
+        if (Hooks::ValidateScripts::Attach())
+            successCount++;
+        else
+            Log::warn("ValidateScripts hook failed - script validation hooks unavailable");
     }
 
     if (enabled("AssertionFailed", Hashes::AssertionFailed))
     {
         totalHooks++;
-        if (Hooks::AssertionFailed::Attach()) successCount++;
-        else Log::warn("AssertionFailed hook failed - assertion logging unavailable");
+        if (Hooks::AssertionFailed::Attach())
+            successCount++;
+        else
+            Log::warn("AssertionFailed hook failed - assertion logging unavailable");
     }
 
     if (enabled("GameInstance_CollectSaveableSystems", Hashes::GameInstance_CollectSaveableSystems))
     {
         totalHooks++;
-        if (Hooks::CollectSaveableSystems::Attach()) successCount++;
-        else Log::warn("CollectSaveableSystems hook failed - save system hooks unavailable");
+        if (Hooks::CollectSaveableSystems::Attach())
+            successCount++;
+        else
+            Log::warn("CollectSaveableSystems hook failed - save system hooks unavailable");
     }
 
     if (enabled("GsmState_SessionActive_ReportErrorCode", Hashes::GsmState_SessionActive_ReportErrorCode))
     {
         totalHooks++;
-        if (Hooks::gsmState_SessionActive::Attach()) successCount++;
-        else Log::warn("gsmState_SessionActive hook failed - session state hooks unavailable");
+        if (Hooks::gsmState_SessionActive::Attach())
+            successCount++;
+        else
+            Log::warn("gsmState_SessionActive hook failed - session state hooks unavailable");
     }
 
     Log::info("Attached {}/{} hooks successfully", successCount, totalHooks);

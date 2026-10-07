@@ -50,7 +50,7 @@ template<typename R, typename... Args>
 R Send(void* aObject, const char* aSelector, Args... aArgs)
 {
     return reinterpret_cast<R (*)(void*, void*, Args...)>(&objc_msgSend)(aObject, sel_registerName(aSelector),
-                                                                          aArgs...);
+                                                                         aArgs...);
 }
 
 // Returns the replaced implementation.

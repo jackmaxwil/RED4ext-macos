@@ -54,7 +54,9 @@ int main(int argc, char** argv)
             }
             const auto hash = static_cast<std::uint32_t>(std::stoul(std::string(hashStr)));
             const auto colon = offsetStr.find(':');
-            const auto offset = colon == std::string_view::npos ? 0 : std::stoull(std::string(offsetStr.substr(colon + 1)), nullptr, 16);
+            const auto offset = colon == std::string_view::npos
+                                    ? 0
+                                    : std::stoull(std::string(offsetStr.substr(colon + 1)), nullptr, 16);
             all.insert(hash);
             if (verified && offset != 0)
             {

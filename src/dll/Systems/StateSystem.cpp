@@ -1,8 +1,8 @@
-#include "stdafx.hpp"
 #include "StateSystem.hpp"
-#include "Utils.hpp"
 #include "App.hpp"
 #include "Platform/NativeHook.hpp"
+#include "Utils.hpp"
+#include "stdafx.hpp"
 
 #include <chrono>
 #include <fstream>
@@ -19,9 +19,9 @@ void WriteMilestone(const char* aEvent, RED4ext::EGameStateType aStateType)
     }
 
     std::ofstream file(app->GetPaths()->GetLogsDir() / "milestones.log", std::ios::app);
-    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::system_clock::now().time_since_epoch())
-                        .count();
+    const auto ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
     file << ms << ' ' << aEvent << ' ' << Utils::Narrow(Utils::GetStateName(aStateType)) << '\n';
 }
 
@@ -113,7 +113,8 @@ void RunSdkSelfChecks()
 
     auto name = RED4ext::CNamePool::Add("RED4extSelfCheckName");
     auto nameText = RED4ext::CNamePool::Get(name);
-    bool nameOk = name.hash == RED4ext::CName("RED4extSelfCheckName").hash && std::strcmp(nameText, "RED4extSelfCheckName") == 0;
+    bool nameOk =
+        name.hash == RED4ext::CName("RED4extSelfCheckName").hash && std::strcmp(nameText, "RED4extSelfCheckName") == 0;
     file << "CHECK cname_pool " << (nameOk ? "pass" : "fail") << std::endl;
 
     bool strOk = false;
@@ -121,8 +122,8 @@ void RunSdkSelfChecks()
         RED4ext::CString shortStr("hello");
         RED4ext::CString longStr("a string longer than the inline buffer of twenty bytes");
         RED4ext::CString copy(longStr);
-        strOk = shortStr.Length() == 5 && std::strcmp(shortStr.c_str(), "hello") == 0 && copy.Length() == longStr.Length() &&
-                std::strcmp(copy.c_str(), longStr.c_str()) == 0;
+        strOk = shortStr.Length() == 5 && std::strcmp(shortStr.c_str(), "hello") == 0 &&
+                copy.Length() == longStr.Length() && std::strcmp(copy.c_str(), longStr.c_str()) == 0;
     }
     file << "CHECK cstring " << (strOk ? "pass" : "fail") << std::endl;
 
@@ -146,8 +147,8 @@ std::string JsonName(RED4ext::CName aName)
 // RED4EXT_DUMP_RTTI=1: write every native/scripted class's layout as the macOS game built it to
 // logs/rtti_layout_macos.json. Reads only what docs/re/reflection_layout.md confirmed from macOS code:
 // IRTTISystem::GetClasses (+0x70, takes the RTTI lock), the CBaseRTTIType virtuals, CClass parent @0x10, props @0x28,
-// funcs @0x48, staticFuncs @0x58, flags @0x70, CBaseFunction fullName @0x08, and CProperty type @0x00, name @0x08, valueOffset @0x20, flags @0x28. CClass::unk118 is a lazily built
-// cache (empty for unused classes) and is not read.
+// funcs @0x48, staticFuncs @0x58, flags @0x70, CBaseFunction fullName @0x08, and CProperty type @0x00, name @0x08,
+// valueOffset @0x20, flags @0x28. CClass::unk118 is a lazily built cache (empty for unused classes) and is not read.
 void DumpRttiLayout()
 {
     if (!std::getenv("RED4EXT_DUMP_RTTI"))
@@ -184,7 +185,8 @@ void DumpRttiLayout()
                                 *reinterpret_cast<const uint64_t*>(&prop->flags));
         }
         body += "]";
-        auto appendFuncs = [&body](const char* aKey, auto& aList) {
+        auto appendFuncs = [&body](const char* aKey, auto& aList)
+        {
             body += fmt::format(",\"{}\":[", aKey);
             for (uint32_t i = 0; i < aList.size; ++i)
             {
@@ -201,8 +203,8 @@ void DumpRttiLayout()
     std::string typeBody;
     for (const auto& [name, type] : types)
     {
-        typeBody += fmt::format("{}\"{}\":{{\"size\":{},\"align\":{},\"kind\":{}}}", typeBody.empty() ? "" : ",\n", name,
-                                type->GetSize(), type->GetAlignment(), static_cast<int>(type->GetType()));
+        typeBody += fmt::format("{}\"{}\":{{\"size\":{},\"align\":{},\"kind\":{}}}", typeBody.empty() ? "" : ",\n",
+                                name, type->GetSize(), type->GetAlignment(), static_cast<int>(type->GetType()));
     }
 
     char uuid[80]{};

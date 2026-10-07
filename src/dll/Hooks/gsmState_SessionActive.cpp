@@ -23,7 +23,7 @@ void _GsmState_SessionActive_ReportErrorCode(uintptr_t aThis)
 
         Log::error("=======");
         Log::error("A game session error occurred. Error code: {} ({}).", type->hashList[errorCode].ToString(),
-                      errorCode);
+                   errorCode);
         Log::error("=======");
     }
 
@@ -34,13 +34,12 @@ void _GsmState_SessionActive_ReportErrorCode(uintptr_t aThis)
 bool Hooks::gsmState_SessionActive::Attach()
 {
     Log::trace("Trying to attach the hook for the game session error code reporter at {:#x}...",
-                  GsmState_SessionActive_ReportErrorCode.GetAddress());
+               GsmState_SessionActive_ReportErrorCode.GetAddress());
 
     auto result = GsmState_SessionActive_ReportErrorCode.Attach();
     if (result != NO_ERROR)
     {
-        Log::error("Could not attach the hook for the game session error code reporter. Detour error code: {}",
-                      result);
+        Log::error("Could not attach the hook for the game session error code reporter. Detour error code: {}", result);
     }
     else
     {
@@ -59,13 +58,12 @@ bool Hooks::gsmState_SessionActive::Detach()
     }
 
     Log::trace("Trying to detach the hook for the game session error code reporter at {:#x}...",
-                  GsmState_SessionActive_ReportErrorCode.GetAddress());
+               GsmState_SessionActive_ReportErrorCode.GetAddress());
 
     auto result = GsmState_SessionActive_ReportErrorCode.Detach();
     if (result != NO_ERROR)
     {
-        Log::error("Could not detach the hook for the game session error code reporter. Detour error code: {}",
-                      result);
+        Log::error("Could not detach the hook for the game session error code reporter. Detour error code: {}", result);
     }
     else
     {

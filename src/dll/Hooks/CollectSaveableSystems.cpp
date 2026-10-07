@@ -42,7 +42,7 @@ void _CollectSaveableSystems(void* a1, const RED4ext::DynArray<RED4ext::Handle<R
 bool Hooks::CollectSaveableSystems::Attach()
 {
     Log::trace("Trying to attach the hook for collect saveable systems at {:#x}...",
-                  GameInstance_CollectSaveableSystems.GetAddress());
+               GameInstance_CollectSaveableSystems.GetAddress());
 
     auto result = GameInstance_CollectSaveableSystems.Attach();
     if (result != NO_ERROR)
@@ -66,7 +66,7 @@ bool Hooks::CollectSaveableSystems::Detach()
     }
 
     Log::trace("Trying to detach the hook for collect saveable systems at {:#x}...",
-                  GameInstance_CollectSaveableSystems.GetAddress());
+               GameInstance_CollectSaveableSystems.GetAddress());
 
     auto result = GameInstance_CollectSaveableSystems.Detach();
     if (result != NO_ERROR)

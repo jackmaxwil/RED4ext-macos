@@ -1,4 +1,6 @@
+// Common.hpp first: the API headers need its macros.
 #include <RED4ext/Common.hpp>
+
 #include <RED4ext/Api/EMainReason.hpp>
 #include <RED4ext/Api/Runtime.hpp>
 #include <RED4ext/Api/Sdk.hpp>
@@ -16,9 +18,9 @@
 #include <string_view>
 #include <vector>
 
-#include <mach/mach.h>
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
+#include <mach/mach.h>
 #include <unistd.h>
 
 #include "AddressHashList.hpp"
@@ -123,22 +125,16 @@ std::shared_ptr<spdlog::logger> GetLogger()
 bool ReadU32(uintptr_t aAddress, uint32_t& aOut)
 {
     vm_size_t readSize = 0;
-    const auto result = vm_read_overwrite(mach_task_self(),
-                                          static_cast<vm_address_t>(aAddress),
-                                          sizeof(uint32_t),
-                                          reinterpret_cast<vm_address_t>(&aOut),
-                                          &readSize);
+    const auto result = vm_read_overwrite(mach_task_self(), static_cast<vm_address_t>(aAddress), sizeof(uint32_t),
+                                          reinterpret_cast<vm_address_t>(&aOut), &readSize);
     return result == KERN_SUCCESS && readSize == sizeof(uint32_t);
 }
 
 bool ReadU64(uintptr_t aAddress, uint64_t& aOut)
 {
     vm_size_t readSize = 0;
-    const auto result = vm_read_overwrite(mach_task_self(),
-                                          static_cast<vm_address_t>(aAddress),
-                                          sizeof(uint64_t),
-                                          reinterpret_cast<vm_address_t>(&aOut),
-                                          &readSize);
+    const auto result = vm_read_overwrite(mach_task_self(), static_cast<vm_address_t>(aAddress), sizeof(uint64_t),
+                                          reinterpret_cast<vm_address_t>(&aOut), &readSize);
     return result == KERN_SUCCESS && readSize == sizeof(uint64_t);
 }
 
@@ -297,8 +293,7 @@ void LogCClassVtableFromMemory()
     const auto scanEnd = dataConst.vmaddr + dataConst.vmsize;
 
     logger->info("[address_validator] CClass vtable scan: __DATA_CONST=0x{:016X} size=0x{:X}",
-                 static_cast<std::uint64_t>(scanStart),
-                 static_cast<std::uint64_t>(dataConst.vmsize));
+                 static_cast<std::uint64_t>(scanStart), static_cast<std::uint64_t>(dataConst.vmsize));
 
     std::vector<std::uint8_t> buffer;
     buffer.resize(kChunkSize);
@@ -311,11 +306,8 @@ void LogCClassVtableFromMemory()
         const auto remaining = scanEnd - addr;
         const auto toRead = static_cast<vm_size_t>(remaining < kChunkSize ? remaining : kChunkSize);
         vm_size_t readSize = 0;
-        const auto result = vm_read_overwrite(mach_task_self(),
-                                              static_cast<vm_address_t>(addr),
-                                              toRead,
-                                              reinterpret_cast<vm_address_t>(buffer.data()),
-                                              &readSize);
+        const auto result = vm_read_overwrite(mach_task_self(), static_cast<vm_address_t>(addr), toRead,
+                                              reinterpret_cast<vm_address_t>(buffer.data()), &readSize);
         if (result != KERN_SUCCESS || readSize == 0)
         {
             continue;
@@ -355,10 +347,7 @@ void LogCClassVtableFromMemory()
             logger->error("[address_validator] CClass_vtbl_mem {} offset=0x{:X} READ_FAIL", label, offset);
             return;
         }
-        logger->info("[address_validator] CClass_vtbl_mem {} offset=0x{:X} ptr=0x{:016X}",
-                     label,
-                     offset,
-                     ptr);
+        logger->info("[address_validator] CClass_vtbl_mem {} offset=0x{:X} ptr=0x{:016X}", label, offset, ptr);
     };
 
     logSlot("sub_80", 0x80);
@@ -402,11 +391,9 @@ void LogIRenderProxyVtableFromMemory()
         buffer.resize(static_cast<std::size_t>(seg.vmsize));
 
         vm_size_t readSize = 0;
-        const auto result = vm_read_overwrite(mach_task_self(),
-                                              static_cast<vm_address_t>(seg.vmaddr),
+        const auto result = vm_read_overwrite(mach_task_self(), static_cast<vm_address_t>(seg.vmaddr),
                                               static_cast<vm_size_t>(seg.vmsize),
-                                              reinterpret_cast<vm_address_t>(buffer.data()),
-                                              &readSize);
+                                              reinterpret_cast<vm_address_t>(buffer.data()), &readSize);
         if (result != KERN_SUCCESS || readSize == 0)
         {
             return 0;
@@ -447,10 +434,7 @@ void LogIRenderProxyVtableFromMemory()
             logger->error("[address_validator] IRenderProxy_vtbl_mem {} offset=0x{:X} READ_FAIL", label, offset);
             return;
         }
-        logger->info("[address_validator] IRenderProxy_vtbl_mem {} offset=0x{:X} ptr=0x{:016X}",
-                     label,
-                     offset,
-                     ptr);
+        logger->info("[address_validator] IRenderProxy_vtbl_mem {} offset=0x{:X} ptr=0x{:016X}", label, offset, ptr);
     };
 
     logSlot("sub_00", 0x00);
@@ -503,9 +487,7 @@ void RunValidation()
         uint32_t instr = 0;
         if (!ReadU32(addr, instr))
         {
-            logger->error("[address_validator] FAIL_READ name={} hash=0x{:08X} addr=0x{:016X}",
-                          entry.name,
-                          entry.hash,
+            logger->error("[address_validator] FAIL_READ name={} hash=0x{:08X} addr=0x{:016X}", entry.name, entry.hash,
                           static_cast<uint64_t>(addr));
             ++failCount;
             ++readFailCount;
@@ -514,53 +496,36 @@ void RunValidation()
 
         if (IsInList(entry.name, kStubHashes))
         {
-            logger->info("[address_validator] STUB name={} hash=0x{:08X} addr=0x{:016X} instr=0x{:08X}",
-                         entry.name,
-                         entry.hash,
-                         static_cast<uint64_t>(addr),
-                         instr);
+            logger->info("[address_validator] STUB name={} hash=0x{:08X} addr=0x{:016X} instr=0x{:08X}", entry.name,
+                         entry.hash, static_cast<uint64_t>(addr), instr);
             ++stubCount;
             continue;
         }
 
         if (IsInList(entry.name, kDataHashes))
         {
-            logger->info("[address_validator] DATA name={} hash=0x{:08X} addr=0x{:016X} word=0x{:08X}",
-                         entry.name,
-                         entry.hash,
-                         static_cast<uint64_t>(addr),
-                         instr);
+            logger->info("[address_validator] DATA name={} hash=0x{:08X} addr=0x{:016X} word=0x{:08X}", entry.name,
+                         entry.hash, static_cast<uint64_t>(addr), instr);
             ++dataCount;
             continue;
         }
 
         if (IsValidPrologue(instr))
         {
-            logger->info("[address_validator] PASS name={} hash=0x{:08X} addr=0x{:016X} instr=0x{:08X}",
-                         entry.name,
-                         entry.hash,
-                         static_cast<uint64_t>(addr),
-                         instr);
+            logger->info("[address_validator] PASS name={} hash=0x{:08X} addr=0x{:016X} instr=0x{:08X}", entry.name,
+                         entry.hash, static_cast<uint64_t>(addr), instr);
             ++passCount;
         }
         else
         {
             logger->error("[address_validator] FAIL_PROLOGUE name={} hash=0x{:08X} addr=0x{:016X} instr=0x{:08X}",
-                          entry.name,
-                          entry.hash,
-                          static_cast<uint64_t>(addr),
-                          instr);
+                          entry.name, entry.hash, static_cast<uint64_t>(addr), instr);
             ++failCount;
         }
     }
 
     logger->info("[address_validator] Summary: total={} pass={} fail={} data={} stub={} zero_skip={} read_fail={}",
-                 AddressValidation::kAddressHashes.size(),
-                 passCount,
-                 failCount,
-                 dataCount,
-                 stubCount,
-                 zeroSkipCount,
+                 AddressValidation::kAddressHashes.size(), passCount, failCount, dataCount, stubCount, zeroSkipCount,
                  readFailCount);
     LogCClassVtableFromMemory();
     LogIRenderProxyVtableFromMemory();

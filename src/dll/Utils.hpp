@@ -100,15 +100,13 @@ struct fmt::formatter<RED4ext::FileVer, Char> : formatter<basic_string_view<Char
 
 #ifdef RED4EXT_PLATFORM_MACOS
 // On macOS, use simple logging instead of message boxes
-#define SHOW_LAST_ERROR_MESSAGE_FILE_LINE(additionalText, ...)                                                         \
-    Log::warn("Error at {}:{}", __FILE__, __LINE__)
+#define SHOW_LAST_ERROR_MESSAGE_FILE_LINE(additionalText, ...) Log::warn("Error at {}:{}", __FILE__, __LINE__)
 
 #define SHOW_LAST_ERROR_MESSAGE_AND_EXIT_FILE_LINE(additionalText, ...)                                                \
     Log::error("Fatal error at {}:{}", __FILE__, __LINE__);                                                            \
     Platform::TerminateProcess()
 
-#define SHOW_MESSAGE_BOX_FILE_LINE(type, msg, ...)                                                                     \
-    Log::warn("Message at {}:{}", __FILE__, __LINE__)
+#define SHOW_MESSAGE_BOX_FILE_LINE(type, msg, ...) Log::warn("Message at {}:{}", __FILE__, __LINE__)
 
 #define SHOW_MESSAGE_BOX_AND_EXIT_FILE_LINE(msg, ...)                                                                  \
     Log::error("Fatal error at {}:{}", __FILE__, __LINE__);                                                            \

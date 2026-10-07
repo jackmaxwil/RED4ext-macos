@@ -1,6 +1,6 @@
-#include "stdafx.hpp"
 #include "Config.hpp"
 #include "Utils.hpp"
+#include "stdafx.hpp"
 
 #define DEFAULT_TOML_EXCEPTION_MSG L"An exception occured while parsing the config file:\n\n{}\n\nFile: {}"
 
@@ -114,10 +114,9 @@ void Config::Save(const std::filesystem::path& aFile)
 
             {"plugins", value_type{{"enabled", m_plugins.isEnabled}, {"ignored", std::vector<std::string>{}}}},
             {"hooking", value_type{{"core_hooks", std::vector<std::string>{}}}},
-            {"dev",
-             value_type{{"console", m_dev.hasConsole},
-                        {"wait_for_debugger", m_dev.waitForDebugger},
-                        {"strict_version_check", m_dev.strictVersionCheck}}}};
+            {"dev", value_type{{"console", m_dev.hasConsole},
+                               {"wait_for_debugger", m_dev.waitForDebugger},
+                               {"strict_version_check", m_dev.strictVersionCheck}}}};
 
         config.comments().push_back(
             " See https://docs.red4ext.com/getting-started/configuration for more options or information.");

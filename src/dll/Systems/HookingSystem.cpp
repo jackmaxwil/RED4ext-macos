@@ -1,8 +1,8 @@
-#include "stdafx.hpp"
 #include "HookingSystem.hpp"
 #include "App.hpp"
 #include "DetourTransaction.hpp"
 #include "Utils.hpp"
+#include "stdafx.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 #include "Platform/NativeHook.hpp"
@@ -78,8 +78,7 @@ bool HookingSystem::Attach(std::shared_ptr<PluginBase> aPlugin, const char* aSym
     Item item(aSymbol, aDetour, aOriginal);
     m_hooks.emplace(aPlugin, std::move(item));
 
-    Log::trace("The hook requested by '{}' at symbol '{}' has been successfully attached", aPlugin->GetName(),
-                  aSymbol);
+    Log::trace("The hook requested by '{}' at symbol '{}' has been successfully attached", aPlugin->GetName(), aSymbol);
     return true;
 #else
     RED4EXT_UNUSED_PARAMETER(aPlugin);
@@ -123,8 +122,8 @@ bool HookingSystem::Attach(std::shared_ptr<PluginBase> aPlugin, void* aTarget, v
     auto result = item.hook.Attach();
     if (result != NO_ERROR)
     {
-        Log::warn(L"The hook requested by '{}' at {} could not be attached. Detour error code: {}",
-                     aPlugin->GetName(), aTarget, result);
+        Log::warn(L"The hook requested by '{}' at {} could not be attached. Detour error code: {}", aPlugin->GetName(),
+                  aTarget, result);
         m_hooks.erase(stored);
         return false;
     }
@@ -190,7 +189,7 @@ bool HookingSystem::Detach(std::shared_ptr<PluginBase> aPlugin, void* aTarget)
     else if (transaction.Commit())
     {
         Log::trace(L"{} hook(s) attached by '{}' at {} have been successfully detached", count, aPlugin->GetName(),
-                      aTarget);
+                   aTarget);
 
         for (auto it = range.first; it != range.second;)
         {
@@ -226,12 +225,12 @@ bool HookingSystem::QueueForDetach(std::shared_ptr<PluginBase> aPlugin, Item& aI
         if (rebind_symbols(&rebind, 1) != 0)
         {
             Log::warn("A hook attached by '{}' at symbol '{}' could not be detached.", aPlugin->GetName(),
-                         aItem.symbol);
+                      aItem.symbol);
             return false;
         }
 
         Log::trace("A hook attached by '{}' at symbol '{}' has been successfully queued for detaching",
-                      aPlugin->GetName(), aItem.symbol);
+                   aPlugin->GetName(), aItem.symbol);
         return true;
 #else
         return false;
@@ -246,11 +245,10 @@ bool HookingSystem::QueueForDetach(std::shared_ptr<PluginBase> aPlugin, Item& aI
     if (result != NO_ERROR)
     {
         Log::warn(L"A hook attached by '{}' at {} could not be detached. Detour error code: {}", aPlugin->GetName(),
-                     target, result);
+                  target, result);
         return false;
     }
 
-    Log::trace(L"A hook attached by '{}' at {} has been successfully queued for detaching", aPlugin->GetName(),
-                  target);
+    Log::trace(L"A hook attached by '{}' at {} has been successfully queued for detaching", aPlugin->GetName(), target);
     return true;
 }

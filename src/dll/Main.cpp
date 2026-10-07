@@ -1,14 +1,13 @@
 #include "App.hpp"
 #include "Image.hpp"
-#include "Utils.hpp"
 #include "Platform.hpp"
+#include "Utils.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 
 void EnableBackgroundModeIfRequested(); // Platform/Background.cpp
 
-__attribute__((constructor))
-static void RED4extInit()
+__attribute__((constructor)) static void RED4extInit()
 {
     try
     {
@@ -35,8 +34,7 @@ static void RED4extInit()
     }
 }
 
-__attribute__((destructor))
-static void RED4extShutdown()
+__attribute__((destructor)) static void RED4extShutdown()
 {
     try
     {

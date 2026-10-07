@@ -1,6 +1,6 @@
-#include "stdafx.hpp"
 #include "Logger.hpp"
 #include "App.hpp"
+#include "stdafx.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 // macOS equivalents for Windows-specific printf functions
@@ -44,7 +44,7 @@ inline int macos_vsnwprintf(wchar_t* buffer, size_t bufsize, size_t /*maxcount*/
 #define Log(func)                                                                                                      \
     if (!aMessage)                                                                                                     \
     {                                                                                                                  \
-        Log::warn("Plugin with handle {} tried to log a message with a NULL message", fmt::ptr(aHandle));           \
+        Log::warn("Plugin with handle {} tried to log a message with a NULL message", fmt::ptr(aHandle));              \
         return;                                                                                                        \
     }                                                                                                                  \
                                                                                                                        \
@@ -66,7 +66,7 @@ inline int macos_vsnwprintf(wchar_t* buffer, size_t bufsize, size_t /*maxcount*/
 #define LogF(char_type, count_fn, format_fn, func)                                                                     \
     if (!aFormat)                                                                                                      \
     {                                                                                                                  \
-        Log::warn("Plugin with handle {} tried to log a message with a NULL format", fmt::ptr(aHandle));            \
+        Log::warn("Plugin with handle {} tried to log a message with a NULL format", fmt::ptr(aHandle));               \
         return;                                                                                                        \
     }                                                                                                                  \
                                                                                                                        \
@@ -99,15 +99,15 @@ inline int macos_vsnwprintf(wchar_t* buffer, size_t bufsize, size_t /*maxcount*/
         }                                                                                                              \
         else if (res < 0)                                                                                              \
         {                                                                                                              \
-            Log::warn(L"Could not format the log message logged by '{}'. '" #format_fn "' returned {}",             \
-                         plugin->GetName(), res);                                                                      \
+            Log::warn(L"Could not format the log message logged by '{}'. '" #format_fn "' returned {}",                \
+                      plugin->GetName(), res);                                                                         \
         }                                                                                                              \
     }                                                                                                                  \
     else if (len < 0)                                                                                                  \
     {                                                                                                                  \
-        Log::warn(L"Could not get the length of the formatted log message logged by '{}'. '" #count_fn              \
-                     "' returned {}",                                                                                  \
-                     plugin->GetName(), len);                                                                          \
+        Log::warn(L"Could not get the length of the formatted log message logged by '{}'. '" #count_fn                 \
+                  "' returned {}",                                                                                     \
+                  plugin->GetName(), len);                                                                             \
     }                                                                                                                  \
                                                                                                                        \
     va_end(args)

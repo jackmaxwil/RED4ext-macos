@@ -1,19 +1,19 @@
 #include "RuntimeValidation.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
-#include "CrashHandler.hpp"
 #include "Addresses.hpp"
 #include "App.hpp"
+#include "CrashHandler.hpp"
+#include <atomic>
+#include <cstring>
+#include <fmt/format.h>
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
 #include <mach/vm_map.h>
 #include <mach/vm_prot.h>
-#include <sys/mman.h>
-#include <cstring>
-#include <atomic>
 #include <mutex>
 #include <spdlog/spdlog.h>
-#include <fmt/format.h>
+#include <sys/mman.h>
 
 namespace Platform
 {
@@ -50,45 +50,47 @@ std::once_flag g_rangeInitFlag;
 
 void InitializeGameRange()
 {
-    std::call_once(g_rangeInitFlag, []() {
-        const uint32_t imageCount = _dyld_image_count();
-        for (uint32_t i = 0; i < imageCount; ++i)
-        {
-            const char* imageName = _dyld_get_image_name(i);
-            if (!imageName)
-            {
-                continue;
-            }
+    std::call_once(g_rangeInitFlag,
+                   []()
+                   {
+                       const uint32_t imageCount = _dyld_image_count();
+                       for (uint32_t i = 0; i < imageCount; ++i)
+                       {
+                           const char* imageName = _dyld_get_image_name(i);
+                           if (!imageName)
+                           {
+                               continue;
+                           }
 
-            std::string name(imageName);
-            if (name.find("Cyberpunk2077") != std::string::npos ||
-                name.find("Cyberpunk2077.app") != std::string::npos)
-            {
-                const struct mach_header_64* header =
-                    reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(i));
-                intptr_t slide = _dyld_get_image_vmaddr_slide(i);
-                uintptr_t base = reinterpret_cast<uintptr_t>(header) - slide;
+                           std::string name(imageName);
+                           if (name.find("Cyberpunk2077") != std::string::npos ||
+                               name.find("Cyberpunk2077.app") != std::string::npos)
+                           {
+                               const struct mach_header_64* header =
+                                   reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(i));
+                               intptr_t slide = _dyld_get_image_vmaddr_slide(i);
+                               uintptr_t base = reinterpret_cast<uintptr_t>(header) - slide;
 
-                g_gameBaseMin = reinterpret_cast<void*>(base);
-                g_gameBaseMax = reinterpret_cast<void*>(base + 0x20000000); // ~512MB max
+                               g_gameBaseMin = reinterpret_cast<void*>(base);
+                               g_gameBaseMax = reinterpret_cast<void*>(base + 0x20000000); // ~512MB max
 
-                spdlog::info("[RuntimeValidation] Game range: {} - {}", 
-                             fmt::ptr(g_gameBaseMin), fmt::ptr(g_gameBaseMax));
-                break;
-            }
-        }
+                               spdlog::info("[RuntimeValidation] Game range: {} - {}", fmt::ptr(g_gameBaseMin),
+                                            fmt::ptr(g_gameBaseMax));
+                               break;
+                           }
+                       }
 
-        if (!g_gameBaseMin)
-        {
-            // Fallback to expected range
-            g_gameBaseMin = reinterpret_cast<void*>(kExpectedGameBase);
-            g_gameBaseMax = reinterpret_cast<void*>(kExpectedGameBase + kExpectedGameSize);
-            spdlog::warn("[RuntimeValidation] Using fallback game range: {} - {}", 
-                         fmt::ptr(g_gameBaseMin), fmt::ptr(g_gameBaseMax));
-        }
-    });
+                       if (!g_gameBaseMin)
+                       {
+                           // Fallback to expected range
+                           g_gameBaseMin = reinterpret_cast<void*>(kExpectedGameBase);
+                           g_gameBaseMax = reinterpret_cast<void*>(kExpectedGameBase + kExpectedGameSize);
+                           spdlog::warn("[RuntimeValidation] Using fallback game range: {} - {}",
+                                        fmt::ptr(g_gameBaseMin), fmt::ptr(g_gameBaseMax));
+                       }
+                   });
 }
-}
+} // namespace
 
 bool ValidateFunctionPrologue(void* aAddress, std::string& outReason)
 {
@@ -139,7 +141,7 @@ bool ValidateFunctionPrologue(void* aAddress, std::string& outReason)
 bool IsAddressInGameRange(void* aAddress)
 {
     InitializeGameRange();
-    
+
     if (!g_gameBaseMin || !g_gameBaseMax)
     {
         return false;
@@ -278,8 +280,8 @@ HookValidationResult ValidateHookTarget(void* aTarget, void* aDetour)
         {
             result.nearestValidRegion = regionInfo.start;
             result.regionSize = regionInfo.size;
-            result.reason = fmt::format("target {} not in mapped memory (nearest: {} size:{})", 
-                                       fmt::ptr(aTarget), fmt::ptr(regionInfo.start), regionInfo.size);
+            result.reason = fmt::format("target {} not in mapped memory (nearest: {} size:{})", fmt::ptr(aTarget),
+                                        fmt::ptr(regionInfo.start), regionInfo.size);
         }
         else
         {
@@ -291,10 +293,10 @@ HookValidationResult ValidateHookTarget(void* aTarget, void* aDetour)
     // Check if target is in expected game range
     if (!IsAddressInGameRange(aTarget))
     {
-        void* min = nullptr, *max = nullptr;
+        void *min = nullptr, *max = nullptr;
         GetGameAddressRange(&min, &max);
-        result.reason = fmt::format("target {} outside expected game range ({} - {})", 
-                                    fmt::ptr(aTarget), fmt::ptr(min), fmt::ptr(max));
+        result.reason = fmt::format("target {} outside expected game range ({} - {})", fmt::ptr(aTarget), fmt::ptr(min),
+                                    fmt::ptr(max));
         // Don't fail - might be valid library code
     }
 
@@ -357,8 +359,8 @@ HealthCheckResult PerformHealthCheck()
         {
             // Check a few critical hashes resolve correctly
             constexpr uint32_t criticalHashes[] = {
-                240386859UL,        // Main
-                4223801011UL,       // CGameApplication_AddState
+                240386859UL,  // Main
+                4223801011UL, // CGameApplication_AddState
             };
 
             for (auto hash : criticalHashes)
@@ -371,7 +373,7 @@ HealthCheckResult PerformHealthCheck()
                 }
                 else if (!IsAddressInGameRange(reinterpret_cast<void*>(addr)))
                 {
-                    result.warnings.push_back(fmt::format("Hash 0x{:08X} resolved to address {} outside game range", 
+                    result.warnings.push_back(fmt::format("Hash 0x{:08X} resolved to address {} outside game range",
                                                           hash, fmt::ptr(reinterpret_cast<void*>(addr))));
                 }
             }
@@ -406,7 +408,7 @@ void RecordHookAttempt(void* aTarget, bool aSuccess, const std::string& aReason)
     else
     {
         g_failedHooks.fetch_add(1);
-        
+
         std::lock_guard<std::mutex> lock(g_hookDetailsMutex);
         if (g_failedHookDetails.size() < 50) // Limit to prevent memory bloat
         {
@@ -453,6 +455,6 @@ void* FindNearestValidRegion(void* aAddress, size_t aMinSize)
 
     return nullptr;
 }
-}
-}
+} // namespace RuntimeValidation
+} // namespace Platform
 #endif

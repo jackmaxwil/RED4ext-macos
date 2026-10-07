@@ -2,14 +2,14 @@
 #include "Platform/MainLookup.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
+#include <iostream>
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 #include <mach/vm_map.h>
-#include <iostream>
-#include <unistd.h>
-#include <sys/mman.h>
 #include <spdlog/spdlog.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 // Global map of original addresses to writable remapped addresses
 #include <unordered_map>
@@ -24,7 +24,7 @@ Handle GetModuleHandle(const wchar_t* aName)
     {
         return dlopen(nullptr, RTLD_LAZY);
     }
-    
+
     // For specific libraries, we'd need to convert aName to narrow string
     // and call dlopen. For now, let's assume it's for the main executable.
     return dlopen(nullptr, RTLD_LAZY);
@@ -43,11 +43,11 @@ bool ProtectMemory(void* aAddress, size_t aSize, uint32_t aNewProtection, uint32
     uintptr_t alignedAddr = addr & ~(pageSize - 1);
     size_t alignedSize = (addr + aSize - alignedAddr + pageSize - 1) & ~(pageSize - 1);
 
-    spdlog::debug("[Platform] ProtectMemory: addr={:#x} aligned={:#x} size={} newProt={:#x}", 
-                  addr, alignedAddr, alignedSize, aNewProtection);
+    spdlog::debug("[Platform] ProtectMemory: addr={:#x} aligned={:#x} size={} newProt={:#x}", addr, alignedAddr,
+                  alignedSize, aNewProtection);
 
     mach_port_t task = mach_task_self();
-    
+
     // Query old protection if requested
     if (aOldProtection)
     {
@@ -56,9 +56,9 @@ bool ProtectMemory(void* aAddress, size_t aSize, uint32_t aNewProtection, uint32
         vm_size_t region_size;
         mach_port_t object_name;
         vm_address_t region_addr = alignedAddr;
-        
-        if (vm_region_64(task, &region_addr, &region_size, VM_REGION_BASIC_INFO_64,
-                        (vm_region_info_t)&info, &info_count, &object_name) == KERN_SUCCESS)
+
+        if (vm_region_64(task, &region_addr, &region_size, VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info,
+                         &info_count, &object_name) == KERN_SUCCESS)
         {
             *aOldProtection = info.protection;
             spdlog::debug("[Platform] Old protection: {:#x}", info.protection);
@@ -85,9 +85,9 @@ bool ProtectMemory(void* aAddress, size_t aSize, uint32_t aNewProtection, uint32
         mach_vm_size_t regionSize = 0;
         const kern_return_t query = mach_vm_region(task, &regionAddr, &regionSize, VM_REGION_EXTENDED_INFO,
                                                    reinterpret_cast<vm_region_info_t>(&info), &infoCount, &objectName);
-        const bool privatePage = query == KERN_SUCCESS && regionAddr <= alignedAddr &&
-                                 (info.share_mode == SM_PRIVATE || info.share_mode == SM_PRIVATE_ALIASED ||
-                                  info.share_mode == SM_EMPTY);
+        const bool privatePage =
+            query == KERN_SUCCESS && regionAddr <= alignedAddr &&
+            (info.share_mode == SM_PRIVATE || info.share_mode == SM_PRIVATE_ALIASED || info.share_mode == SM_EMPTY);
         if (!privatePage)
         {
             prot |= VM_PROT_COPY;
@@ -136,6 +136,6 @@ void TerminateProcess()
 {
     exit(1);
 }
-}
+} // namespace Platform
 
 #endif

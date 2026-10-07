@@ -58,9 +58,8 @@ bool _CGameApplication_AddState(RED4ext::CGameApplication* aThis, RED4ext::IGame
         }
         else
         {
-            Log::warn(
-                "One or more game state virtual functions could not be changed, the game will continue running "
-                "but unexpected behavior might happen");
+            Log::warn("One or more game state virtual functions could not be changed, the game will continue running "
+                      "but unexpected behavior might happen");
         }
     }
     catch (const std::exception& e)
@@ -80,7 +79,7 @@ bool _CGameApplication_AddState(RED4ext::CGameApplication* aThis, RED4ext::IGame
 bool Hooks::CGameApplication::Attach()
 {
     Log::trace("Trying to attach the hook for the game application at {:#x}...",
-                  CGameApplication_AddState.GetAddress());
+               CGameApplication_AddState.GetAddress());
 
     auto result = CGameApplication_AddState.Attach();
     if (result != NO_ERROR)
@@ -104,7 +103,7 @@ bool Hooks::CGameApplication::Detach()
     }
 
     Log::trace("Trying to detach the hook for the game application at {:#x}...",
-                  CGameApplication_AddState.GetAddress());
+               CGameApplication_AddState.GetAddress());
 
     auto result = CGameApplication_AddState.Detach();
     if (result != NO_ERROR)

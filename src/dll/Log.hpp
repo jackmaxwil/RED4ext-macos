@@ -6,7 +6,7 @@
 
 /**
  * @brief Platform-agnostic logging wrapper for spdlog.
- * 
+ *
  * On Windows, spdlog supports wide strings natively.
  * On macOS, we convert wide strings to narrow strings before logging.
  */
@@ -18,7 +18,8 @@ namespace Log
 // Convert wide string to narrow string (simplified ASCII conversion)
 inline std::string Narrow(const wchar_t* ws)
 {
-    if (!ws) return "";
+    if (!ws)
+        return "";
     std::string result;
     result.reserve(128);
     while (*ws)
@@ -52,9 +53,18 @@ inline std::string Narrow(std::wstring_view ws)
 }
 
 // Pass-through for narrow strings
-inline const std::string& Narrow(const std::string& s) { return s; }
-inline std::string Narrow(std::string_view s) { return std::string(s); }
-inline std::string Narrow(const char* s) { return s ? s : ""; }
+inline const std::string& Narrow(const std::string& s)
+{
+    return s;
+}
+inline std::string Narrow(std::string_view s)
+{
+    return std::string(s);
+}
+inline std::string Narrow(const char* s)
+{
+    return s ? s : "";
+}
 
 // Convert filesystem::path to string
 inline std::string NarrowPath(const std::filesystem::path& p)
@@ -67,25 +77,39 @@ namespace detail
 
 // Helper to detect if T is a wide character type
 template<typename T>
-struct is_wide_char : std::false_type {};
+struct is_wide_char : std::false_type
+{
+};
 
 template<>
-struct is_wide_char<wchar_t*> : std::true_type {};
+struct is_wide_char<wchar_t*> : std::true_type
+{
+};
 
 template<>
-struct is_wide_char<const wchar_t*> : std::true_type {};
+struct is_wide_char<const wchar_t*> : std::true_type
+{
+};
 
 template<>
-struct is_wide_char<std::wstring> : std::true_type {};
+struct is_wide_char<std::wstring> : std::true_type
+{
+};
 
 template<>
-struct is_wide_char<std::wstring_view> : std::true_type {};
+struct is_wide_char<std::wstring_view> : std::true_type
+{
+};
 
 template<>
-struct is_wide_char<std::wstring&> : std::true_type {};
+struct is_wide_char<std::wstring&> : std::true_type
+{
+};
 
 template<>
-struct is_wide_char<const std::wstring&> : std::true_type {};
+struct is_wide_char<const std::wstring&> : std::true_type
+{
+};
 
 // Convert a single argument: wide strings become narrow, others pass through
 template<typename T>
@@ -186,28 +210,64 @@ void critical(const char* fmt, Args&&... args)
 }
 
 // Single argument versions (for non-format logging)
-inline void trace(const wchar_t* msg) { spdlog::trace(Narrow(msg)); }
-inline void debug(const wchar_t* msg) { spdlog::debug(Narrow(msg)); }
-inline void info(const wchar_t* msg) { spdlog::info(Narrow(msg)); }
-inline void warn(const wchar_t* msg) { spdlog::warn(Narrow(msg)); }
-inline void error(const wchar_t* msg) { spdlog::error(Narrow(msg)); }
-inline void critical(const wchar_t* msg) { spdlog::critical(Narrow(msg)); }
+inline void trace(const wchar_t* msg)
+{
+    spdlog::trace(Narrow(msg));
+}
+inline void debug(const wchar_t* msg)
+{
+    spdlog::debug(Narrow(msg));
+}
+inline void info(const wchar_t* msg)
+{
+    spdlog::info(Narrow(msg));
+}
+inline void warn(const wchar_t* msg)
+{
+    spdlog::warn(Narrow(msg));
+}
+inline void error(const wchar_t* msg)
+{
+    spdlog::error(Narrow(msg));
+}
+inline void critical(const wchar_t* msg)
+{
+    spdlog::critical(Narrow(msg));
+}
 
-inline void trace(const char* msg) { spdlog::trace(msg); }
-inline void debug(const char* msg) { spdlog::debug(msg); }
-inline void info(const char* msg) { spdlog::info(msg); }
-inline void warn(const char* msg) { spdlog::warn(msg); }
-inline void error(const char* msg) { spdlog::error(msg); }
-inline void critical(const char* msg) { spdlog::critical(msg); }
+inline void trace(const char* msg)
+{
+    spdlog::trace(msg);
+}
+inline void debug(const char* msg)
+{
+    spdlog::debug(msg);
+}
+inline void info(const char* msg)
+{
+    spdlog::info(msg);
+}
+inline void warn(const char* msg)
+{
+    spdlog::warn(msg);
+}
+inline void error(const char* msg)
+{
+    spdlog::error(msg);
+}
+inline void critical(const char* msg)
+{
+    spdlog::critical(msg);
+}
 
 #else // Windows - pass through to spdlog directly
 
-using spdlog::trace;
-using spdlog::debug;
-using spdlog::info;
-using spdlog::warn;
-using spdlog::error;
 using spdlog::critical;
+using spdlog::debug;
+using spdlog::error;
+using spdlog::info;
+using spdlog::trace;
+using spdlog::warn;
 
 #endif
 

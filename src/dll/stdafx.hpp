@@ -43,40 +43,63 @@ using LPWSTR = wchar_t*;
 using LPCWSTR = const wchar_t*;
 
 // macOS-compatible unique_hmodule (replaces wil::unique_hmodule)
-namespace wil {
-    struct unique_hmodule {
-        unique_hmodule() : handle_(nullptr) {}
-        explicit unique_hmodule(void* handle) : handle_(handle) {}
-        unique_hmodule(unique_hmodule&& other) noexcept : handle_(other.release()) {}
-        ~unique_hmodule() { reset(); }
-        
-        unique_hmodule& operator=(unique_hmodule&& other) noexcept {
-            reset(other.release());
-            return *this;
-        }
-        
-        // Plugins are never dlclose'd on macOS: a plugin's hooks can outlive its unload (they are not detached at exit,
-        // and a refused plugin may have attached some), so unmapping its code would leave live jumps into nothing.
-        void reset(void* handle = nullptr) {
-            handle_ = handle;
-        }
-        
-        void* release() {
-            void* h = handle_;
-            handle_ = nullptr;
-            return h;
-        }
-        
-        void* get() const { return handle_; }
-        explicit operator bool() const { return handle_ != nullptr; }
-        
-    private:
-        void* handle_;
-        
-        unique_hmodule(const unique_hmodule&) = delete;
-        unique_hmodule& operator=(const unique_hmodule&) = delete;
-    };
-}
+namespace wil
+{
+struct unique_hmodule
+{
+    unique_hmodule()
+        : handle_(nullptr)
+    {
+    }
+    explicit unique_hmodule(void* handle)
+        : handle_(handle)
+    {
+    }
+    unique_hmodule(unique_hmodule&& other) noexcept
+        : handle_(other.release())
+    {
+    }
+    ~unique_hmodule()
+    {
+        reset();
+    }
+
+    unique_hmodule& operator=(unique_hmodule&& other) noexcept
+    {
+        reset(other.release());
+        return *this;
+    }
+
+    // Plugins are never dlclose'd on macOS: a plugin's hooks can outlive its unload (they are not detached at exit,
+    // and a refused plugin may have attached some), so unmapping its code would leave live jumps into nothing.
+    void reset(void* handle = nullptr)
+    {
+        handle_ = handle;
+    }
+
+    void* release()
+    {
+        void* h = handle_;
+        handle_ = nullptr;
+        return h;
+    }
+
+    void* get() const
+    {
+        return handle_;
+    }
+    explicit operator bool() const
+    {
+        return handle_ != nullptr;
+    }
+
+private:
+    void* handle_;
+
+    unique_hmodule(const unique_hmodule&) = delete;
+    unique_hmodule& operator=(const unique_hmodule&) = delete;
+};
+} // namespace wil
 #endif
 
 #ifdef RED4EXT_PLATFORM_MACOS
@@ -96,8 +119,8 @@ namespace wil {
 #define RED4EXT_UNUSED_PARAMETER(x) (void)x
 #endif
 
-#include <spdlog/spdlog.h>
 #include "Log.hpp"
+#include <spdlog/spdlog.h>
 #include <toml.hpp>
 #include <tsl/ordered_map.h>
 

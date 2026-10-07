@@ -4,27 +4,26 @@
 #include "App.hpp"
 #include "Paths.hpp"
 #include "Utils.hpp"
+#include <RED4ext/Detail/Memory.hpp>
+#include <atomic>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
+#include <dlfcn.h>
 #include <execinfo.h>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+#include <fstream>
+#include <iomanip>
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
 #include <mach/mach.h>
 #include <mach/vm_map.h>
 #include <signal.h>
+#include <spdlog/spdlog.h>
+#include <sstream>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <dlfcn.h>
-#include <cstring>
-#include <cstdlib>
-#include <ctime>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
-#include <atomic>
-#include <spdlog/spdlog.h>
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-#include <RED4ext/Detail/Memory.hpp>
-#include "Utils.hpp"
 
 // Helper function for pointer formatting (matches fmt::ptr usage in Addresses.cpp)
 namespace fmt
@@ -38,7 +37,7 @@ std::string ptr(T* p)
     }
     return fmt::format("{:#018x}", reinterpret_cast<uintptr_t>(p));
 }
-}
+} // namespace fmt
 
 namespace Platform
 {
@@ -93,7 +92,7 @@ void SignalHandler(int sig, siginfo_t* info, void* ucontext)
                   << "LR (Link Register): " << fmt::ptr(reinterpret_cast<void*>(ctx->uc_mcontext->__ss.__lr)) << "\n"
                   << "SP (Stack Pointer): " << fmt::ptr(reinterpret_cast<void*>(ctx->uc_mcontext->__ss.__sp)) << "\n"
                   << "FP (Frame Pointer): " << fmt::ptr(reinterpret_cast<void*>(ctx->uc_mcontext->__ss.__fp)) << "\n";
-        
+
         // Log register state
         std::cerr << "\nRegister State:\n";
         for (int i = 0; i < 30; ++i)
@@ -153,7 +152,7 @@ void AbortHandler()
 
     std::cerr << "\n========================================\n";
 }
-}
+} // namespace
 
 void Initialize()
 {
@@ -223,7 +222,7 @@ bool IsValidAddress(void* aAddress, size_t aSize)
     vm_size_t regionSize = size;
 
     kern_return_t kr = vm_region_64(task, &regionAddress, &regionSize, VM_REGION_BASIC_INFO_64,
-                                     reinterpret_cast<vm_region_info_t>(&info), &infoCount, &objectName);
+                                    reinterpret_cast<vm_region_info_t>(&info), &infoCount, &objectName);
 
     if (kr != KERN_SUCCESS)
     {
@@ -251,7 +250,7 @@ bool GetMemoryRegionInfo(void* aAddress, MemoryRegionInfo& outInfo)
     vm_size_t regionSize = 0;
 
     kern_return_t kr = vm_region_64(task, &regionAddress, &regionSize, VM_REGION_BASIC_INFO_64,
-                                     reinterpret_cast<vm_region_info_t>(&info), &infoCount, &objectName);
+                                    reinterpret_cast<vm_region_info_t>(&info), &infoCount, &objectName);
 
     if (kr != KERN_SUCCESS)
     {
@@ -266,8 +265,7 @@ bool GetMemoryRegionInfo(void* aAddress, MemoryRegionInfo& outInfo)
     const uint32_t imageCount = _dyld_image_count();
     for (uint32_t i = 0; i < imageCount; ++i)
     {
-        const struct mach_header_64* header =
-            reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(i));
+        const struct mach_header_64* header = reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(i));
         if (!header)
         {
             continue;
@@ -295,8 +293,7 @@ void LogLoadedImages()
     for (uint32_t i = 0; i < std::min(imageCount, 20u); ++i) // Limit to first 20
     {
         const char* imageName = _dyld_get_image_name(i);
-        const struct mach_header_64* header =
-            reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(i));
+        const struct mach_header_64* header = reinterpret_cast<const struct mach_header_64*>(_dyld_get_image_header(i));
         intptr_t slide = _dyld_get_image_vmaddr_slide(i);
 
         if (header)
@@ -378,8 +375,7 @@ void GenerateCrashReport(const char* aReason, void* aFaultAddress)
             if (header)
             {
                 file << "  [" << std::setw(2) << i << "] " << fmt::ptr(reinterpret_cast<const void*>(header))
-                     << " slide=" << std::hex << slide << std::dec << " " << (imageName ? imageName : "<null>")
-                     << "\n";
+                     << " slide=" << std::hex << slide << std::dec << " " << (imageName ? imageName : "<null>") << "\n";
             }
         }
 
@@ -391,6 +387,6 @@ void GenerateCrashReport(const char* aReason, void* aFaultAddress)
         // Ignore errors
     }
 }
-}
-}
+} // namespace CrashHandler
+} // namespace Platform
 #endif

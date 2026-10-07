@@ -29,12 +29,15 @@ ValidationError ValidationError::FromString(const char* str)
     {
         type = ValidationErrorType::MissingBaseClass;
     }
-    else if (sscanf(str, "Native class '%63[^']' has declared base class '%63[^']' that is different than current one '%*[^']'",
-                    name, parent) == 2)
+    else if (sscanf(
+                 str,
+                 "Native class '%63[^']' has declared base class '%63[^']' that is different than current one '%*[^']'",
+                 name, parent) == 2)
     {
         type = ValidationErrorType::BaseClassMismatch;
     }
-    else if (sscanf(str, "Imported property '%63[^.].%63[^']' type '%*[^']' does not match with the native one '%*[^']'",
+    else if (sscanf(str,
+                    "Imported property '%63[^.].%63[^']' type '%*[^']' does not match with the native one '%*[^']'",
                     parent, name) == 2)
     {
         type = ValidationErrorType::PropertyTypeMismatch;
@@ -77,7 +80,7 @@ ValidationError ValidationError::FromString(const char* str)
     }
 #endif
 
-    return { .type = type, .name = name, .parent = parent };
+    return {.type = type, .name = name, .parent = parent};
 }
 
 std::optional<SourceRef> ValidationError::GetSourceRef() const

@@ -5,7 +5,6 @@
 #include "Hook.hpp"
 #include "stdafx.hpp"
 
-
 namespace
 {
 bool isAttached = false;

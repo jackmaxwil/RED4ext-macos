@@ -53,7 +53,7 @@ void _AssertionFailed(const char* aFile, int aLineNum, const char* aCondition, c
 bool Hooks::AssertionFailed::Attach()
 {
     Log::trace("Trying to attach the hook for the assertion failed function at {:#x}...",
-                  AssertionFailed_fnc.GetAddress());
+               AssertionFailed_fnc.GetAddress());
 
     auto result = AssertionFailed_fnc.Attach();
     if (result != NO_ERROR)
@@ -77,7 +77,7 @@ bool Hooks::AssertionFailed::Detach()
     }
 
     Log::trace("Trying to detach the hook for the assertion failed function at {:#x}...",
-                  AssertionFailed_fnc.GetAddress());
+               AssertionFailed_fnc.GetAddress());
 
     auto result = AssertionFailed_fnc.Detach();
     if (result != NO_ERROR)

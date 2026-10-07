@@ -179,11 +179,13 @@ void Push(RelocOut& out, uint32_t word)
 
 void EmitMovAbs(RelocOut& out, uint32_t rd, uint64_t value)
 {
-    const auto movz = [](uint32_t reg, uint16_t imm, uint32_t shift) {
+    const auto movz = [](uint32_t reg, uint16_t imm, uint32_t shift)
+    {
         const uint32_t hw = (shift / 16) & 3u;
         return 0xD2800000u | (hw << 21) | (static_cast<uint32_t>(imm) << 5) | (reg & 31u);
     };
-    const auto movk = [](uint32_t reg, uint16_t imm, uint32_t shift) {
+    const auto movk = [](uint32_t reg, uint16_t imm, uint32_t shift)
+    {
         const uint32_t hw = (shift / 16) & 3u;
         return 0xF2800000u | (hw << 21) | (static_cast<uint32_t>(imm) << 5) | (reg & 31u);
     };
@@ -590,8 +592,8 @@ void Unlink(Site* site, Node* node)
     *link = node->older;
     if (newer != nullptr && newer->pp != nullptr)
     {
-        void* previous = node->older != nullptr && !node->older->detach ? node->older->detour
-                                                                         : static_cast<void*>(site->page + 16);
+        void* previous =
+            node->older != nullptr && !node->older->detach ? node->older->detour : static_cast<void*>(site->page + 16);
         *newer->pp = previous;
     }
 
@@ -733,7 +735,8 @@ bool PatchSites(Site** sites, uint32_t siteCount, const uintptr_t* hotPages, uin
 
     Snap snaps[kMaxSites * 2]{};
     uint32_t snapCount = 0;
-    auto remember = [&](void* addr, uint32_t size, uintptr_t page) {
+    auto remember = [&](void* addr, uint32_t size, uintptr_t page)
+    {
         if (snapCount >= kMaxSites * 2)
         {
             return;
@@ -766,7 +769,8 @@ bool PatchSites(Site** sites, uint32_t siteCount, const uintptr_t* hotPages, uin
         }
     }
 
-    auto rollback = [&]() {
+    auto rollback = [&]()
+    {
         uintptr_t rolled[kMaxSites * 2]{};
         uint32_t rolledCount = 0;
         for (uint32_t i = 0; i < snapCount; ++i)
@@ -963,7 +967,8 @@ bool PatchSites(Site** sites, uint32_t siteCount, const uintptr_t* hotPages, uin
                 {
                     if (PageOf(sites[i]->target) == finished[f])
                     {
-                        std::memcpy(reinterpret_cast<void*>(sites[i]->target), sites[i]->original, sites[i]->patchBytes);
+                        std::memcpy(reinterpret_cast<void*>(sites[i]->target), sites[i]->original,
+                                    sites[i]->patchBytes);
                     }
                 }
 
@@ -1006,7 +1011,8 @@ bool StopAndPatch(Site** sites, uint32_t siteCount)
 {
     uintptr_t hotPages[kMaxSites * 2]{};
     uint32_t hotCount = 0;
-    auto addHot = [&](uintptr_t page) {
+    auto addHot = [&](uintptr_t page)
+    {
         for (uint32_t i = 0; i < hotCount; ++i)
         {
             if (hotPages[i] == page)
@@ -2252,11 +2258,10 @@ void MainImageUuid(char* out, size_t cap)
         if (command->cmd == LC_UUID)
         {
             const auto* uuid = reinterpret_cast<const uuid_command*>(command);
-            std::snprintf(out, cap,
-                          "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X", uuid->uuid[0],
-                          uuid->uuid[1], uuid->uuid[2], uuid->uuid[3], uuid->uuid[4], uuid->uuid[5], uuid->uuid[6],
-                          uuid->uuid[7], uuid->uuid[8], uuid->uuid[9], uuid->uuid[10], uuid->uuid[11], uuid->uuid[12],
-                          uuid->uuid[13], uuid->uuid[14], uuid->uuid[15]);
+            std::snprintf(out, cap, "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+                          uuid->uuid[0], uuid->uuid[1], uuid->uuid[2], uuid->uuid[3], uuid->uuid[4], uuid->uuid[5],
+                          uuid->uuid[6], uuid->uuid[7], uuid->uuid[8], uuid->uuid[9], uuid->uuid[10], uuid->uuid[11],
+                          uuid->uuid[12], uuid->uuid[13], uuid->uuid[14], uuid->uuid[15]);
             return;
         }
 
