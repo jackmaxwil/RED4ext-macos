@@ -49,6 +49,11 @@ for entry in $PLUGIN_TABLE; do
         rm -rf "$GAME_DIR/r6/scripts/$name" "$R4E_DIR/plugins/$name/Scripts"
         cp -R "$WS/$repo/$scripts" "$R4E_DIR/plugins/$name/Scripts"
     fi
+    # Plugin-provided game files (e.g. input bindings for inputloader.pl in r6/input).
+    if [[ -d "$WS/$repo/scripts/r6" ]]; then
+        cp -R "$WS/$repo/scripts/r6/." "$GAME_DIR/r6/"
+        rm -rf "$R4E_DIR/plugins/$name/r6"
+    fi
     if [[ "$data" != - ]]; then
         rm -rf "$R4E_DIR/plugins/$name/Data"
         cp -R "$WS/$repo/$data" "$R4E_DIR/plugins/$name/Data"
