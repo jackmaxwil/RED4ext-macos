@@ -6,3 +6,13 @@ CpAutotest.NewFlat:
 CpAutotest.NewItem:
   $base: Items.money
   quality: Quality.Legendary
+
+# A custom stat type: TweakXL adds it to gamedataStatType and installs its StatsDataSystem hooks.
+BaseStats.CpAutotestStat:
+  $base: BaseStats.Armor
+  enumName: CpAutotestStat
+
+# Set to 42 by CpAutotestScriptTweak (tweakxl.reds).
+CpAutotest.ScriptFlat:
+  $type: Int32
+  $value: 1

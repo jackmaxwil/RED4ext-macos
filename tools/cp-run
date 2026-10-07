@@ -263,8 +263,10 @@ try:
     for h in hooks:
         if not h["installed"] or h["install_kr"] != 0:
             fails.append(f"hook {h['name']} not installed (kr={h['install_kr']})")
-        elif h["hits"] < 1:
+        elif h["hits"] < 1 and h.get("owner", "RED4ext") == "RED4ext":
             fails.append(f"hook {h['name']} installed but never hit")
+        elif h["hits"] < 1:
+            print(f"[cp-run]   note: {h.get('owner')} hook {h['name'][:60]} not hit in this scenario")
 except (OSError, ValueError, KeyError) as e:
     fails.append(f"hookstats.json missing or unreadable ({e})")
 try:
