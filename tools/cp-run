@@ -171,6 +171,10 @@ fi
 START=$(date +%s)
 touch "$RUN_DIR/.start"
 say "launching ($SCENARIO, timeout ${TIMEOUT}s, core_hooks=[${CORE_HOOKS}], plugins=[${CP_PLUGINS:-}])"
+# The start screen is where the game loads the player profile; with -skipStartScreen the menu shows no saves. Scenarios
+# that load a save (CP_PRESS_START=1) keep the start screen and press Space on it from the watch loop.
+START_ARGS=-skipStartScreen
+[[ "${CP_PRESS_START:-0}" == 1 ]] && START_ARGS=""
 # Started outside Steam, the game's SteamAPI_Init has no app ID, fails, and the game then shows no saves. Pass the ID
 # Steam itself sets, but only when Steam is already running: tooling never starts Steam (that pops its login window).
 STEAM_APP_ID=""
@@ -180,7 +184,7 @@ pgrep -q steam_osx && STEAM_APP_ID=1091500
     # rttidump: RED4ext writes logs/rtti_layout_macos.json when Running is entered (main menu checks then exit).
     [[ "$SCENARIO" != rttidump ]] || export RED4EXT_DUMP_RTTI=1
     CP_AUTOTEST="$SCENARIO" DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
-    exec "$GAME_BIN" -skipStartScreen >"$RUN_DIR/stdout.log" 2>&1) &
+    exec "$GAME_BIN" $START_ARGS >"$RUN_DIR/stdout.log" 2>&1) &
 GAME_PID=$!
 
 # --- watch ----------------------------------------------------------------------------------------
@@ -189,8 +193,14 @@ shot() { # screenshot of the game window, if it has one
     id=$(swift "$TOOLS_DIR/window-id.swift" "$GAME_PID" 2>/dev/null || true)
     [[ -n "$id" ]] && screencapture -x -o -l "$id" "$RUN_DIR/$1.png" 2>/dev/null || true
 }
+press_key() { # <macOS key code>: bring the game window to the front, then press the key
+    osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $GAME_PID) to true" \
+        -e "delay 1" -e "tell application \"System Events\" to key code $1" >>"$RUN_DIR/keys.log" 2>&1 || true
+}
 OUTCOME=timeout
 SHOT_AT=$((START + 60))
+START_PRESSES=0
+NEXT_START_PRESS=$((START + 40))
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
     if [[ -f "$LOGS_DIR/autotest.log" ]] &&
@@ -202,8 +212,7 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         if [[ -n "${CP_WORLD_HOLD:-}" ]]; then
             sleep "$CP_WORLD_HOLD"; shot hold-before
             if [[ -n "${CP_KEYCODE:-}" ]]; then
-                osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $GAME_PID) to true" \
-                    -e "delay 1" -e "tell application \"System Events\" to key code $CP_KEYCODE" >"$RUN_DIR/keys.log" 2>&1 || true
+                press_key "$CP_KEYCODE"
                 sleep 3; shot hold-after
             fi
         else
@@ -212,6 +221,10 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         break
     fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
+    if [[ -z "$START_ARGS" && $START_PRESSES -lt 4 && $now -ge $NEXT_START_PRESS ]] &&
+        ! grep -q MAIN_MENU "$LOGS_DIR/autotest.log" 2>/dev/null; then
+        press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 15))
+    fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
     sleep 2
 done
