@@ -164,7 +164,13 @@ fi
 START=$(date +%s)
 touch "$RUN_DIR/.start"
 say "launching ($SCENARIO, timeout ${TIMEOUT}s, core_hooks=[${CORE_HOOKS}], plugins=[${CP_PLUGINS:-}])"
-(cd "$GAME_DIR" && CP_AUTOTEST="$SCENARIO" DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
+# Started outside Steam, the game's SteamAPI_Init has no app ID, fails, and the game then shows no saves. Pass the ID
+# Steam itself sets, but only when Steam is already running: tooling never starts Steam (that pops its login window).
+STEAM_APP_ID=""
+pgrep -q steam_osx && STEAM_APP_ID=1091500
+(cd "$GAME_DIR" || exit 2
+    [[ -z "$STEAM_APP_ID" ]] || export SteamAppId=$STEAM_APP_ID SteamGameId=$STEAM_APP_ID
+    CP_AUTOTEST="$SCENARIO" DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
     exec "$GAME_BIN" -skipStartScreen >"$RUN_DIR/stdout.log" 2>&1) &
 GAME_PID=$!
 
