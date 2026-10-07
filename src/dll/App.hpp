@@ -20,6 +20,7 @@ public:
 
     void Startup();
     void Shutdown();
+    static bool IsShuttingDown();
 
     LoggerSystem* GetLoggerSystem();
     HookingSystem* GetHookingSystem();

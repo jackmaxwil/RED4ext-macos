@@ -55,10 +55,9 @@ namespace wil {
             return *this;
         }
         
+        // Plugins are never dlclose'd on macOS: a plugin's hooks can outlive its unload (they are not detached at exit,
+        // and a refused plugin may have attached some), so unmapping its code would leave live jumps into nothing.
         void reset(void* handle = nullptr) {
-            if (handle_) {
-                dlclose(handle_);
-            }
             handle_ = handle;
         }
         

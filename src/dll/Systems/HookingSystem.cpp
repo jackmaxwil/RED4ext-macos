@@ -1,5 +1,6 @@
 #include "stdafx.hpp"
 #include "HookingSystem.hpp"
+#include "App.hpp"
 #include "DetourTransaction.hpp"
 #include "Utils.hpp"
 
@@ -138,6 +139,16 @@ bool HookingSystem::Detach(std::shared_ptr<PluginBase> aPlugin, void* aTarget)
 {
     Log::trace(L"Detaching all hooks attached by '{}' at {}...", aPlugin->GetName(), aTarget);
     std::scoped_lock _(m_mutex);
+
+#ifdef RED4EXT_PLATFORM_MACOS
+    // Hooks stay installed for the rest of the process on macOS (plugins are never unmapped), so a plugin's unhook
+    // while the game exits is a no-op rather than a patch of code other threads may still be running.
+    if (App::IsShuttingDown())
+    {
+        Log::trace(L"Leaving the hooks attached by '{}' at {} in place during shutdown", aPlugin->GetName(), aTarget);
+        return true;
+    }
+#endif
 
     DetourTransaction transaction;
     size_t count = 0;

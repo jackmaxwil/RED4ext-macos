@@ -278,8 +278,19 @@ void App::Startup()
     Log::info("RED4ext has been started");
 }
 
+namespace
+{
+std::atomic<bool> g_shuttingDown{false};
+}
+
+bool App::IsShuttingDown()
+{
+    return g_shuttingDown.load();
+}
+
 void App::Shutdown()
 {
+    g_shuttingDown.store(true);
     Log::info("RED4ext is shutting down...");
 
     // One failing system must not skip the others (or the logs and hook stats written after them).
