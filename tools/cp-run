@@ -195,7 +195,21 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
     if [[ -f "$LOGS_DIR/autotest.log" ]] &&
         awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/PLAYER_ATTACHED/{f=1} /"event":"DONE"/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log"; then
-        OUTCOME=results; sleep 5; break
+        OUTCOME=results
+        # CP_WORLD_HOLD=N keeps the game running N more seconds (e.g. so the in-world HUD is built), with a screenshot
+        # before and after; CP_KEYCODE=<macOS virtual key code> presses that key in the game window in between
+        # (needs Accessibility permission for the terminal).
+        if [[ -n "${CP_WORLD_HOLD:-}" ]]; then
+            sleep "$CP_WORLD_HOLD"; shot hold-before
+            if [[ -n "${CP_KEYCODE:-}" ]]; then
+                osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $GAME_PID) to true" \
+                    -e "delay 1" -e "tell application \"System Events\" to key code $CP_KEYCODE" >"$RUN_DIR/keys.log" 2>&1 || true
+                sleep 3; shot hold-after
+            fi
+        else
+            sleep 5
+        fi
+        break
     fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
