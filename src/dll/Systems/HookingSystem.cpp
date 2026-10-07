@@ -23,6 +23,13 @@ void HookingSystem::Shutdown()
 {
     std::scoped_lock _(m_mutex);
 
+#ifdef RED4EXT_PLATFORM_MACOS
+    // Plugins stay mapped and their hooks stay installed until the process exits (see Detach).
+    Log::trace("Leaving {} plugin hook(s) in place at shutdown", m_hooks.size());
+    m_hooks.clear();
+    return;
+#endif
+
     Log::trace("Detaching {} dangling hook(s)...", m_hooks.size());
 
     DetourTransaction transaction;
