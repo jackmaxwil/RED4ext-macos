@@ -51,6 +51,21 @@ void RunSdkSelfChecks()
     auto hasVtable = rtti && *reinterpret_cast<void**>(rtti) != nullptr;
     auto boolType = hasVtable ? rtti->GetType("Bool") : nullptr;
     file << "CHECK rtti_get_type " << (boolType && boolType->GetSize() == 1 ? "pass" : "fail") << std::endl;
+
+    auto name = RED4ext::CNamePool::Add("RED4extSelfCheckName");
+    auto nameText = RED4ext::CNamePool::Get(name);
+    bool nameOk = name.hash == RED4ext::CName("RED4extSelfCheckName").hash && std::strcmp(nameText, "RED4extSelfCheckName") == 0;
+    file << "CHECK cname_pool " << (nameOk ? "pass" : "fail") << std::endl;
+
+    bool strOk = false;
+    {
+        RED4ext::CString shortStr("hello");
+        RED4ext::CString longStr("a string longer than the inline buffer of twenty bytes");
+        RED4ext::CString copy(longStr);
+        strOk = shortStr.Length() == 5 && std::strcmp(shortStr.c_str(), "hello") == 0 && copy.Length() == longStr.Length() &&
+                std::strcmp(copy.c_str(), longStr.c_str()) == 0;
+    }
+    file << "CHECK cstring " << (strOk ? "pass" : "fail") << std::endl;
 }
 } // namespace
 
