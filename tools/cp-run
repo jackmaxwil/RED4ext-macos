@@ -77,9 +77,12 @@ d = json.load(open(p))
 for g in d["data"]:
     for o in g.get("options", []):
         if g["group_name"] == "/video/display" and o["name"] == "WindowMode":
-            o["value"] = "Windowed"
+            o["value"], o["index"] = "Windowed", 0
         if g["group_name"] == "/video/display" and o["name"] == "Resolution":
+            # The index points into the monitor's runtime resolution list, which is not stored here; drop it so the
+            # game matches by value instead of keeping the native resolution's index.
             o["value"] = "1280x720"
+            o.pop("index", None)
 json.dump(d, open(p, "w"), indent=2)
 EOF
 
