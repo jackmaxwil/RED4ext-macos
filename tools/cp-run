@@ -6,7 +6,8 @@
 # Scenarios:
 #   boot      RED4ext only, core hook allowlist from $CP_CORE_HOOKS (default: CGameApplication_AddState).
 #             Pass = every installed hook has hits >= 1, Running state entered, no crash report.
-#   <other>   Plugins enabled, CP_AUTOTEST=<scenario>; pass also requires red4ext/logs/results.json "pass": true.
+#   <other>   Plugins enabled; installs tools/autotest for one run. Pass also requires every CPAUTOTEST
+#             CHECK line on stdout to pass and a DONE event (collected into results.json).
 #
 # Launches the game binary directly with RED4ext injected (never FridaGadget), in a 1280x720 window.
 # The user's UserSettings.json and red4ext/config.ini are backed up and restored on any exit.
@@ -59,6 +60,9 @@ fi
 # --- backup + test profile ------------------------------------------------------------------------
 cp -p "$SETTINGS" "$RUN_DIR/backup/UserSettings.json"
 [[ -f "$R4E_DIR/config.ini" ]] && cp -p "$R4E_DIR/config.ini" "$RUN_DIR/backup/config.ini"
+CACHE="$GAME_DIR/r6/cache"
+AUTOTEST_DIR="$GAME_DIR/r6/scripts/cp_autotest"
+cp -p "$CACHE"/final.redscripts* "$RUN_DIR/backup/"
 GAME_PID=""
 restore() {
     [[ -n "$GAME_PID" ]] && kill -9 "$GAME_PID" 2>/dev/null || true
@@ -66,6 +70,8 @@ restore() {
         cp -p "$RUN_DIR/backup/UserSettings.json" "$SETTINGS"
     fi
     if [[ -f "$RUN_DIR/backup/config.ini" ]]; then cp -p "$RUN_DIR/backup/config.ini" "$R4E_DIR/config.ini"; else rm -f "$R4E_DIR/config.ini"; fi
+    rm -rf "$AUTOTEST_DIR"
+    cp -p "$RUN_DIR/backup"/final.redscripts* "$CACHE/"
 }
 trap restore EXIT
 
@@ -115,8 +121,15 @@ backend = "native_inline"
 core_hooks = [${core_list%, }]
 EOF
 
+# --- autotest scripts (non-boot scenarios) --------------------------------------------------------
+if [[ "$SCENARIO" != boot ]]; then
+    mkdir -p "$AUTOTEST_DIR"
+    cp "$TOOLS_DIR/autotest/"*.reds "$AUTOTEST_DIR/"
+    printf 'module CpAutotest\n\npublic func CpAutotestScenario() -> String = "%s";\n' "$SCENARIO" >"$AUTOTEST_DIR/Scenario.reds"
+fi
+
 # --- launch ---------------------------------------------------------------------------------------
-rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/results.json"
+rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log"
 [[ -x "$GAME_DIR/engine/tools/scc" ]] && "$GAME_DIR/engine/tools/scc" -compile "$GAME_DIR/r6/scripts" >"$RUN_DIR/scc.log" 2>&1 || true
 [[ -x "$GAME_DIR/engine/tools/inputloader.pl" ]] && "$GAME_DIR/engine/tools/inputloader.pl" >"$RUN_DIR/inputloader.log" 2>&1 || true
 
@@ -137,7 +150,7 @@ OUTCOME=timeout
 SHOT_AT=$((START + 60))
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
-    if [[ -f "$LOGS_DIR/results.json" ]]; then OUTCOME=results; sleep 5; break; fi
+    if grep -q 'CPAUTOTEST {"event":"DONE"}' "$RUN_DIR/stdout.log" 2>/dev/null; then OUTCOME=results; sleep 5; break; fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
     sleep 2
@@ -155,11 +168,30 @@ GAME_PID=""
 sleep 3 # let ReportCrash write the .ips
 
 # --- collect --------------------------------------------------------------------------------------
-cp "$LOGS_DIR"/{hookstats.json,milestones.log,results.json} "$RUN_DIR/" 2>/dev/null || true
+cp "$LOGS_DIR"/{hookstats.json,milestones.log} "$RUN_DIR/" 2>/dev/null || true
 latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
 [[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
 find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
 find "$HOME/Library/Logs/DiagnosticReports" -name 'Cyberpunk2077*.ips' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
+
+# results.json from the autotest's "CPAUTOTEST <json>" stdout lines
+python3 - "$RUN_DIR" <<'PY'
+import json, os, sys
+run = sys.argv[1]
+events = []
+for line in open(os.path.join(run, "stdout.log"), errors="replace"):
+    i = line.find("CPAUTOTEST ")
+    if i >= 0:
+        try:
+            events.append(json.loads(line[i + len("CPAUTOTEST "):].strip()))
+        except ValueError:
+            pass
+if events:
+    checks = [e for e in events if e.get("event") == "CHECK"]
+    done = any(e.get("event") == "DONE" for e in events)
+    res = {"pass": done and bool(checks) and all(c.get("pass") for c in checks), "checks": checks, "events": events}
+    json.dump(res, open(os.path.join(run, "results.json"), "w"), indent=2)
+PY
 
 # --- verdict --------------------------------------------------------------------------------------
 python3 - "$RUN_DIR" "$SCENARIO" "$OUTCOME" "$EXIT_CODE" <<'EOF'
@@ -194,7 +226,7 @@ if scenario != "boot":
             bad = [c.get("name") for c in res.get("checks", []) if not c.get("pass")]
             fails.append(f"results.json pass=false {bad}")
     except (OSError, ValueError) as e:
-        fails.append(f"results.json missing ({e})")
+        fails.append(f"results.json missing: no CPAUTOTEST lines on stdout ({e})")
 verdict = "PASS" if not fails else "FAIL"
 summary = {"scenario": scenario, "verdict": verdict, "outcome": outcome, "exit_code": code, "failures": fails}
 json.dump(summary, open(os.path.join(run, "verdict.json"), "w"), indent=2)
