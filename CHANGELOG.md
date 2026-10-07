@@ -5,6 +5,9 @@ All notable changes to the RED4ext macOS port.
 ## [Unreleased]
 
 - **Upstream sync:** RED4ext 1.30.0, RED4ext.SDK 1.0 (API v1), TweakXL 1.11.4, ArchiveXL 1.27.4. Plugins built against SDK 1.0 load; v0 plugins still load. Tested with `tools/cp-regress` (all scenarios) and 73 mod archives in the world.
+- **TweakXL:** overrides of fields a new record inherits from its base (for example a custom stat's `enumName`) could be silently lost, depending on which other tweaks were installed. Fixed.
+- **Archive load order matches Windows:** case-insensitive name order, first archive wins a conflict (tested with generated archives; `tools/cp-regress` covers it).
+- **Addresses resolve only from the verified database:** the symbol-name mapping that dev installs had (and releases did not) is gone.
 - **Off on macOS until verified:** the `QuickExit` hook (shutdown stays on `atexit`), ArchiveXL's collision-shape deletions and its nails-colour fallback.
 
 ## [0.1.0-rc3] - 2026-10-07
