@@ -1,0 +1,8 @@
+# Installed as r6/tweaks/cp_autotest.yaml by cp-run for the tweakxl scenario.
+CpAutotest.NewFlat:
+  $type: Int32
+  $value: 2077
+
+CpAutotest.NewItem:
+  $base: Items.money
+  quality: Quality.Legendary

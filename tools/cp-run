@@ -65,7 +65,7 @@ restore() {
         cp -p "$RUN_DIR/backup/UserSettings.json" "$SETTINGS"
     fi
     if [[ -f "$RUN_DIR/backup/config.ini" ]]; then cp -p "$RUN_DIR/backup/config.ini" "$R4E_DIR/config.ini"; else rm -f "$R4E_DIR/config.ini"; fi
-    rm -rf "$AUTOTEST_DIR" "$GAME_DIR/r6/scripts/zz_red4ext_plugins"
+    rm -rf "$AUTOTEST_DIR" "$GAME_DIR/r6/scripts/zz_red4ext_plugins" "$GAME_DIR/r6/tweaks/cp_autotest.yaml"
     cp -p "$RUN_DIR/backup"/final.redscripts* "$CACHE/"
 }
 trap restore EXIT
@@ -131,6 +131,11 @@ if [[ "$SCENARIO" != boot ]]; then
     [[ -f "$scenario_checks" ]] || scenario_checks="$TOOLS_DIR/autotest/scenarios/default.reds"
     cp "$scenario_checks" "$AUTOTEST_DIR/ScenarioChecks.reds"
     printf 'module CpAutotest\n\npublic func CpAutotestScenario() -> String = "%s";\n' "$SCENARIO" >"$AUTOTEST_DIR/Scenario.reds"
+    # Optional TweakXL input for the scenario; removed again on exit.
+    if [[ -f "$TOOLS_DIR/autotest/scenarios/$SCENARIO.yaml" ]]; then
+        mkdir -p "$GAME_DIR/r6/tweaks"
+        cp "$TOOLS_DIR/autotest/scenarios/$SCENARIO.yaml" "$GAME_DIR/r6/tweaks/cp_autotest.yaml"
+    fi
 fi
 
 # --- launch ---------------------------------------------------------------------------------------
