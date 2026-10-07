@@ -12,6 +12,8 @@
 # With no arguments it checks the TweakXL, ModMenu and ArchiveXL builds next to this repo.
 # Exit 0 only if every check passes.
 #
+# CP_GATE_NO_GAME=1 skips check 1 only (CI runners have no game). Every other check still runs.
+#
 # Patch-day procedure when check 1 fails:
 #   1. tools/cp-run rttidump        -> copy logs/rtti_layout_macos.json to RED4ext.SDK/data/
 #   2. Re-verify every "verified" DB entry against the new binary (RED4ext.SDK/docs/re/*.md lists the evidence),
@@ -36,11 +38,15 @@ bad() { echo "FAIL: $*"; fail=1; }
 normalize() { tr -d '-' | tr '[:lower:]' '[:upper:]'; }
 dbuuid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("uuid",""))' "$DB" | normalize)
 dumpuuid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("uuid",""))' "$DUMP" | normalize)
-gameuuid=$(dwarfdump --uuid "$GAME_BIN" 2>/dev/null | awk '/arm64/{print $2}' | normalize)
 
 step "game binary vs address DB"
-echo "game $gameuuid / DB $dbuuid / dump $dumpuuid"
-[[ -n "$gameuuid" && "$gameuuid" == "$dbuuid" ]] || bad "the game binary does not match the address DB (patch day: see the header of this script)"
+if [[ "${CP_GATE_NO_GAME:-}" == 1 ]]; then
+    echo "SKIP game binary check (CP_GATE_NO_GAME=1) / DB $dbuuid / dump $dumpuuid"
+else
+    gameuuid=$(dwarfdump --uuid "$GAME_BIN" 2>/dev/null | awk '/arm64/{print $2}' | normalize)
+    echo "game $gameuuid / DB $dbuuid / dump $dumpuuid"
+    [[ -n "$gameuuid" && "$gameuuid" == "$dbuuid" ]] || bad "the game binary does not match the address DB (patch day: see the header of this script)"
+fi
 [[ "$dumpuuid" == "$dbuuid" ]] || bad "the layout dump is from another binary (run tools/cp-run rttidump)"
 
 step "verified address entries"
