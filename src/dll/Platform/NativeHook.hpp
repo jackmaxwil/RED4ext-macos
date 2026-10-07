@@ -5,15 +5,27 @@
 #include <cstddef>
 #include <cstdint>
 
-// Native arm64 hook engine. A 4-byte B in the target reaches a near island.
-// The island holds the absolute jump. Trampolines and islands are anonymous
-// pages allocated within ±128 MiB. No MAP_JIT.
+// Native arm64 hook engine. No MAP_JIT.
+// Near: a 4-byte B to an island within ±128 MiB.
+// Far: ADRP x17; ADD x17, x17, #pageoff; BR x17 to an island within ±4 GiB.
+// A far patch is only installed at an LC_FUNCTION_STARTS entry. The first
+// three instructions are relocated; an unsupported PC-relative form, a
+// function shorter than 12 bytes, or a branch into entry+4/+8 is refused.
+// x0-x8 stay untouched. x16/x17 are the veneer scratches.
 
 namespace NativeHook
 {
 
 inline constexpr const char* kRefuseCodeWritesFormat =
     "Refusing native code writes: address DB mismatch (db_version='%s' image_version='%s' db_uuid='%s' image_uuid='%s')";
+
+// Attach failures. -1 remains the generic failure (closed transaction, duplicate, protect).
+inline constexpr int32_t kErrNotFunctionStart = -2;
+inline constexpr int32_t kErrFunctionTooShort = -3;
+inline constexpr int32_t kErrInteriorBranch = -4;
+inline constexpr int32_t kErrRelocate = -5;
+inline constexpr int32_t kErrUnreachable = -6;
+inline constexpr int32_t kErrSpansPage = -7;
 
 struct ProtectOp
 {
@@ -45,9 +57,13 @@ struct HookInfo
     int installKr;
     bool installed;
     uint64_t hits;
+    char patch[8];
 };
 
 void Begin();
+#ifdef RED4EXT_NATIVE_HOOK_TEST
+void ForceFar(bool on);
+#endif
 int32_t Attach(void** ppPointer, void* detour);
 int32_t Detach(void** ppPointer, void* detour);
 int32_t Commit();

@@ -85,7 +85,7 @@ if(APPLE)
         ${CMAKE_SOURCE_DIR}/src/dll/Platform/MainLookup.cpp
     )
     target_include_directories(native_hook_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/dll)
-    target_compile_definitions(native_hook_tests PRIVATE RED4EXT_PLATFORM_MACOS)
+    target_compile_definitions(native_hook_tests PRIVATE RED4EXT_PLATFORM_MACOS RED4EXT_NATIVE_HOOK_TEST)
     target_link_libraries(native_hook_tests PRIVATE ${CMAKE_DL_LIBS})
     add_dependencies(native_hook_tests native_hook_plugin_stub)
 

@@ -360,6 +360,7 @@ static void TestHookStats()
     CHECK(json.find("\"owner\":\"RED4ext\"") != std::string::npos);
     CHECK(json.find("\"install_kr\":0") != std::string::npos);
     CHECK(json.find("\"installed\":true") != std::string::npos);
+    CHECK(json.find("\"patch\":\"near\"") != std::string::npos);
     CHECK(json.find("\"hits\":2") != std::string::npos);
     CHECK(json.find("\"target\":\"0x") != std::string::npos);
     CHECK(json.find("\"image_offset\":\"0x") != std::string::npos);
@@ -416,6 +417,476 @@ static void TestMainOnly()
     std::printf("PASS main-only lookup\n");
 }
 
+struct NhBig
+{
+    uint64_t v[8];
+};
+
+extern "C" uint64_t NhAdd(uint64_t);
+extern "C" uint64_t NhAddNext();
+extern "C" uint64_t NhHi(uint64_t);
+extern "C" uint64_t NhCbz(uint64_t);
+extern "C" uint64_t NhTbz(uint64_t);
+extern "C" uint64_t NhAdr();
+extern "C" uint64_t NhAdrNext();
+extern "C" uint64_t NhAdrp();
+extern "C" uint64_t NhAdrpNext();
+extern "C" uint64_t NhLdr();
+extern "C" uint64_t NhLdrNext();
+extern "C" uint64_t NhShort();
+extern "C" uint64_t NhShortNext();
+extern "C" uint64_t NhBack(uint64_t);
+extern "C" uint64_t NhBackNext();
+extern "C" uint64_t NhBad();
+extern "C" uint64_t NhBadNext();
+extern "C" NhBig NhStruct(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+extern "C" uint64_t NhStructNext();
+
+__asm__(R"(
+.text
+.p2align 2
+.globl _NhAdd
+_NhAdd:
+    add w0, w0, #1
+    nop
+    nop
+    ret
+.globl _NhAddNext
+_NhAddNext:
+    ret
+.globl _NhHi
+_NhHi:
+    cmp w0, #0x6ac
+    b.hi Lhi
+    mov w0, #1
+    ret
+Lhi:
+    mov w0, #2
+    ret
+.globl _NhCbz
+_NhCbz:
+    cbz w0, Lcbz
+    mov w0, #1
+    nop
+    ret
+Lcbz:
+    mov w0, #2
+    ret
+.globl _NhTbz
+_NhTbz:
+    tbz w0, #0, Ltbz
+    mov w0, #1
+    nop
+    ret
+Ltbz:
+    mov w0, #2
+    ret
+.globl _NhAdr
+_NhAdr:
+    adr x0, Ladr
+    nop
+    nop
+    ret
+    .p2align 3
+Ladr:
+    .quad 0
+.globl _NhAdrNext
+_NhAdrNext:
+    ret
+.globl _NhAdrp
+_NhAdrp:
+    adrp x0, Ladrp@PAGE
+    add x0, x0, Ladrp@PAGEOFF
+    nop
+    ret
+    .p2align 3
+Ladrp:
+    .quad 1
+.globl _NhAdrpNext
+_NhAdrpNext:
+    ret
+.globl _NhLdr
+_NhLdr:
+    ldr x0, Lldr
+    nop
+    nop
+    ret
+    .p2align 3
+Lldr:
+    .quad 0x1122334455667788
+.globl _NhLdrNext
+_NhLdrNext:
+    ret
+.globl _NhShort
+_NhShort:
+    mov w0, #5
+    ret
+.globl _NhShortNext
+_NhShortNext:
+    ret
+.globl _NhBack
+_NhBack:
+    mov w0, #0
+Lback:
+    add w0, w0, #1
+    nop
+    cmp w0, #3
+    b.lt Lback
+    ret
+.globl _NhBackNext
+_NhBackNext:
+    ret
+.globl _NhBad
+_NhBad:
+    .inst 0xdc0003e0
+    nop
+    nop
+    ret
+.globl _NhBadNext
+_NhBadNext:
+    ret
+.globl _NhStruct
+_NhStruct:
+    stp x0, x1, [x8]
+    stp x2, x3, [x8, #16]
+    stp x4, x5, [x8, #32]
+    stp x6, x7, [x8, #48]
+    mov x0, x8
+    ret
+.globl _NhStructNext
+_NhStructNext:
+    ret
+)");
+
+struct FarScope
+{
+    FarScope()
+    {
+        NativeHook::ForceFar(true);
+    }
+
+    ~FarScope()
+    {
+        NativeHook::ForceFar(false);
+    }
+};
+
+static int FarAttach(void** slot, void* detour)
+{
+    FarScope scope;
+    Tx tx;
+    const int kr = NativeHook::Attach(slot, detour);
+    if (kr != 0)
+    {
+        return kr;
+    }
+
+    return tx.Commit() ? 0 : -1;
+}
+
+static bool FarPatch(const void* fn)
+{
+    const auto* word = reinterpret_cast<const uint32_t*>(fn);
+    if ((word[0] & 0x9F000000u) != 0x90000000u || (word[1] & 0xFFC00000u) != 0x91000000u || word[2] != 0xD61F0220u)
+    {
+        return false;
+    }
+
+    uint32_t imm = ((word[0] >> 5) & 0x7FFFFu) << 2 | ((word[0] >> 29) & 3u);
+    int64_t simm = imm;
+    if ((simm & (1 << 20)) != 0)
+    {
+        simm |= ~((static_cast<int64_t>(1) << 21) - 1);
+    }
+
+    const uint64_t page = (reinterpret_cast<uint64_t>(fn) & ~0xFFFull) + (static_cast<uint64_t>(simm) << 12);
+    const uint32_t off = (word[1] >> 10) & 0xFFFu;
+    const auto* island = reinterpret_cast<const uint32_t*>(page + off);
+    return island[0] == 0x58000050u && island[1] == 0xD61F0200u;
+}
+
+static uint64_t (*g_addA)(uint64_t) = nullptr;
+static uint64_t (*g_addB)(uint64_t) = nullptr;
+
+static uint64_t AddA(uint64_t x)
+{
+    return g_addA(x) + 10;
+}
+
+static uint64_t AddB(uint64_t x)
+{
+    return g_addB(x) + 100;
+}
+
+static uint64_t (*g_u64)(uint64_t) = nullptr;
+static uint64_t PassU64(uint64_t x)
+{
+    return g_u64(x);
+}
+
+static uint64_t (*g_u64v)() = nullptr;
+static uint64_t PassU64v()
+{
+    return g_u64v();
+}
+
+static void KeepFarSymbols()
+{
+    void* keep[] = {reinterpret_cast<void*>(NhAddNext),  reinterpret_cast<void*>(NhAdrNext),
+                    reinterpret_cast<void*>(NhAdrpNext), reinterpret_cast<void*>(NhLdrNext),
+                    reinterpret_cast<void*>(NhShortNext), reinterpret_cast<void*>(NhBackNext),
+                    reinterpret_cast<void*>(NhBadNext),  reinterpret_cast<void*>(NhStructNext)};
+    std::atomic<void*> sink{keep[0]};
+    (void)sink;
+    (void)keep;
+}
+
+static void TestFarPatch()
+{
+    KeepFarSymbols();
+    const uint32_t before[3] = {reinterpret_cast<uint32_t*>(NhAdd)[0], reinterpret_cast<uint32_t*>(NhAdd)[1],
+                                reinterpret_cast<uint32_t*>(NhAdd)[2]};
+    CHECK(NhAdd(1) == 2);
+    void* slot = reinterpret_cast<void*>(NhAdd);
+    NativeHook::SetIdentity(slot, "FarAdd", "RED4ext");
+    const int kr = FarAttach(&slot, reinterpret_cast<void*>(TextDetour));
+    if (kr != 0)
+    {
+        std::printf("FAIL far attach %d\n", kr);
+    }
+
+    CHECK(kr == 0);
+    CHECK(FarPatch(reinterpret_cast<void*>(NhAdd)));
+    CHECK(NhAdd(1) == 42);
+    CHECK(NhAdd(1) == 42);
+
+    NativeHook::HookInfo infos[32]{};
+    const uint32_t n = NativeHook::CopyHookStats(infos, 32);
+    bool saw = false;
+    for (uint32_t i = 0; i < n && i < 32; ++i)
+    {
+        if (std::strcmp(infos[i].name, "FarAdd") != 0)
+        {
+            continue;
+        }
+
+        saw = true;
+        CHECK(std::strcmp(infos[i].patch, "far") == 0);
+        CHECK(infos[i].installed);
+        CHECK(infos[i].hits == 2);
+        CHECK(infos[i].installKr == 0);
+    }
+
+    CHECK(saw);
+    Tx tx;
+    CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(TextDetour)) == 0);
+    CHECK(tx.Commit());
+    CHECK(NhAdd(1) == 2);
+    CHECK(std::memcmp(reinterpret_cast<void*>(NhAdd), before, sizeof(before)) == 0);
+    std::printf("PASS far patch\n");
+}
+
+static void TestFarChain()
+{
+    g_addA = NhAdd;
+    g_addB = NhAdd;
+    void* a = reinterpret_cast<void*>(g_addA);
+    void* b = reinterpret_cast<void*>(g_addB);
+    CHECK(FarAttach(&a, reinterpret_cast<void*>(AddA)) == 0);
+    g_addA = reinterpret_cast<uint64_t (*)(uint64_t)>(a);
+    CHECK(FarAttach(&b, reinterpret_cast<void*>(AddB)) == 0);
+    g_addB = reinterpret_cast<uint64_t (*)(uint64_t)>(b);
+    CHECK(NhAdd(1) == 112);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&b, reinterpret_cast<void*>(AddB)) == 0);
+        CHECK(tx.Commit());
+    }
+    CHECK(NhAdd(1) == 12);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&a, reinterpret_cast<void*>(AddA)) == 0);
+        CHECK(tx.Commit());
+    }
+    CHECK(NhAdd(1) == 2);
+    std::printf("PASS far chain\n");
+}
+
+static void TestFarReloc()
+{
+    CHECK(NhHi(0x6ac) == 1);
+    CHECK(NhHi(0x6ad) == 2);
+    g_u64 = NhHi;
+    void* slot = reinterpret_cast<void*>(g_u64);
+    CHECK(FarAttach(&slot, reinterpret_cast<void*>(PassU64)) == 0);
+    g_u64 = reinterpret_cast<uint64_t (*)(uint64_t)>(slot);
+    CHECK(FarPatch(reinterpret_cast<void*>(NhHi)));
+    CHECK(NhHi(0x6ac) == 1);
+    CHECK(NhHi(0x6ad) == 2);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(PassU64)) == 0);
+        CHECK(tx.Commit());
+    }
+
+    CHECK(NhCbz(0) == 2);
+    CHECK(NhCbz(3) == 1);
+    g_u64 = NhCbz;
+    slot = reinterpret_cast<void*>(g_u64);
+    CHECK(FarAttach(&slot, reinterpret_cast<void*>(PassU64)) == 0);
+    g_u64 = reinterpret_cast<uint64_t (*)(uint64_t)>(slot);
+    CHECK(NhCbz(0) == 2);
+    CHECK(NhCbz(3) == 1);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(PassU64)) == 0);
+        CHECK(tx.Commit());
+    }
+
+    CHECK(NhTbz(2) == 2);
+    CHECK(NhTbz(3) == 1);
+    g_u64 = NhTbz;
+    slot = reinterpret_cast<void*>(g_u64);
+    CHECK(FarAttach(&slot, reinterpret_cast<void*>(PassU64)) == 0);
+    g_u64 = reinterpret_cast<uint64_t (*)(uint64_t)>(slot);
+    CHECK(NhTbz(2) == 2);
+    CHECK(NhTbz(3) == 1);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(PassU64)) == 0);
+        CHECK(tx.Commit());
+    }
+
+    const uint64_t adr = NhAdr();
+    g_u64v = NhAdr;
+    slot = reinterpret_cast<void*>(g_u64v);
+    CHECK(FarAttach(&slot, reinterpret_cast<void*>(PassU64v)) == 0);
+    g_u64v = reinterpret_cast<uint64_t (*)()>(slot);
+    CHECK(NhAdr() == adr);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(PassU64v)) == 0);
+        CHECK(tx.Commit());
+    }
+
+    const uint64_t adrp = NhAdrp();
+    g_u64v = NhAdrp;
+    slot = reinterpret_cast<void*>(g_u64v);
+    CHECK(FarAttach(&slot, reinterpret_cast<void*>(PassU64v)) == 0);
+    g_u64v = reinterpret_cast<uint64_t (*)()>(slot);
+    CHECK(NhAdrp() == adrp);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(PassU64v)) == 0);
+        CHECK(tx.Commit());
+    }
+
+    CHECK(NhLdr() == 0x1122334455667788ull);
+    g_u64v = NhLdr;
+    slot = reinterpret_cast<void*>(g_u64v);
+    CHECK(FarAttach(&slot, reinterpret_cast<void*>(PassU64v)) == 0);
+    g_u64v = reinterpret_cast<uint64_t (*)()>(slot);
+    CHECK(NhLdr() == 0x1122334455667788ull);
+    {
+        Tx tx;
+        CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(PassU64v)) == 0);
+        CHECK(tx.Commit());
+    }
+
+    std::printf("PASS far relocate\n");
+}
+
+static int Refuse(void* fn, void* detour)
+{
+    const uint32_t before = *reinterpret_cast<uint32_t*>(fn);
+    void* slot = fn;
+    const int kr = FarAttach(&slot, detour);
+    CHECK(*reinterpret_cast<uint32_t*>(fn) == before);
+    return kr;
+}
+
+static void TestFarRefuse()
+{
+    CHECK(NhBack(0) == 3);
+    const int backKr = Refuse(reinterpret_cast<void*>(NhBack), reinterpret_cast<void*>(TextDetour));
+    if (backKr != NativeHook::kErrInteriorBranch)
+    {
+        std::printf("FAIL interior kr=%d\n", backKr);
+    }
+
+    CHECK(backKr == NativeHook::kErrInteriorBranch);
+    CHECK(NhBack(0) == 3);
+
+    const auto shortNext = reinterpret_cast<uintptr_t>(NhShortNext);
+    const auto shortFn = reinterpret_cast<uintptr_t>(NhShort);
+    if (shortNext - shortFn != 8)
+    {
+        std::printf("FAIL short delta %llu\n", static_cast<unsigned long long>(shortNext - shortFn));
+    }
+
+    CHECK(shortNext - shortFn == 8);
+    CHECK(NhShort() == 5);
+    const int shortKr = Refuse(reinterpret_cast<void*>(NhShort), reinterpret_cast<void*>(TextDetour));
+    if (shortKr != NativeHook::kErrFunctionTooShort)
+    {
+        std::printf("FAIL short kr=%d\n", shortKr);
+    }
+
+    CHECK(shortKr == NativeHook::kErrFunctionTooShort);
+    CHECK(NhShort() == 5);
+
+    const int midKr = Refuse(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(NhAdd) + 4),
+                             reinterpret_cast<void*>(TextDetour));
+    if (midKr != NativeHook::kErrNotFunctionStart)
+    {
+        std::printf("FAIL mid kr=%d\n", midKr);
+    }
+
+    CHECK(midKr == NativeHook::kErrNotFunctionStart);
+
+    const uint32_t badBefore[3] = {reinterpret_cast<uint32_t*>(NhBad)[0], reinterpret_cast<uint32_t*>(NhBad)[1],
+                                   reinterpret_cast<uint32_t*>(NhBad)[2]};
+    void* bad = reinterpret_cast<void*>(NhBad);
+    const int badKr = FarAttach(&bad, reinterpret_cast<void*>(TextDetour));
+    if (badKr != NativeHook::kErrRelocate)
+    {
+        std::printf("FAIL reloc kr=%d\n", badKr);
+    }
+
+    CHECK(badKr == NativeHook::kErrRelocate);
+    CHECK(std::memcmp(reinterpret_cast<void*>(NhBad), badBefore, sizeof(badBefore)) == 0);
+    std::printf("PASS far refuse\n");
+}
+
+static NhBig (*g_structOrig)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) = nullptr;
+
+static __attribute__((noinline)) NhBig StructDetour(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e,
+                                                    uint64_t f, uint64_t g, uint64_t h)
+{
+    NhBig out = g_structOrig(a, b, c, d, e, f, g, h);
+    out.v[0] += 1;
+    return out;
+}
+
+static void TestFarStruct()
+{
+    const NhBig plain = NhStruct(10, 20, 30, 40, 50, 60, 70, 80);
+    CHECK(plain.v[0] == 10 && plain.v[1] == 20 && plain.v[2] == 30 && plain.v[3] == 40);
+    CHECK(plain.v[4] == 50 && plain.v[5] == 60 && plain.v[6] == 70 && plain.v[7] == 80);
+    g_structOrig = NhStruct;
+    void* slot = reinterpret_cast<void*>(g_structOrig);
+    CHECK(FarAttach(&slot, reinterpret_cast<void*>(StructDetour)) == 0);
+    g_structOrig = reinterpret_cast<NhBig (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+                                              uint64_t)>(slot);
+    const NhBig hooked = NhStruct(10, 20, 30, 40, 50, 60, 70, 80);
+    CHECK(hooked.v[0] == 11 && hooked.v[1] == 20 && hooked.v[2] == 30 && hooked.v[3] == 40);
+    CHECK(hooked.v[4] == 50 && hooked.v[5] == 60 && hooked.v[6] == 70 && hooked.v[7] == 80);
+    Tx tx;
+    CHECK(NativeHook::Detach(&slot, reinterpret_cast<void*>(StructDetour)) == 0);
+    CHECK(tx.Commit());
+    std::printf("PASS far x8\n");
+}
+
 int main()
 {
     std::signal(SIGALRM, OnAlarm);
@@ -430,6 +901,11 @@ int main()
     TestParked(false);
     TestParked(true);
     TestHookStats();
+    TestFarPatch();
+    TestFarChain();
+    TestFarReloc();
+    TestFarRefuse();
+    TestFarStruct();
     TestRefuseWrites();
     TestMainOnly();
 

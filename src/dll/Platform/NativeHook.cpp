@@ -51,7 +51,9 @@ struct Node
 struct Site
 {
     uintptr_t target = 0;
-    uint32_t original = 0;
+    uint32_t original[3]{};
+    uint32_t patchBytes = 4;
+    bool far = false;
     uint8_t* page = nullptr;
     uint32_t tramp[40]{};
     uint32_t trampCount = 0;
@@ -77,6 +79,7 @@ struct Failed
     int installKr = -1;
     char name[160]{};
     char owner[128]{};
+    char patch[8]{};
 };
 
 std::mutex g_mu;
@@ -85,6 +88,9 @@ Ident* g_idents = nullptr;
 Failed g_failed[64]{};
 bool g_open = false;
 std::atomic<bool> g_writesAllowed{true};
+#ifdef RED4EXT_NATIVE_HOOK_TEST
+std::atomic<bool> g_forceFar{false};
+#endif
 
 ProtectOp g_protLog[64]{};
 uint32_t g_protCount = 0;
@@ -287,6 +293,21 @@ bool InBranchRange(uintptr_t from, uintptr_t to)
     return diff > -limit && diff < limit - 4;
 }
 
+bool InAdrpRange(uintptr_t pc, uintptr_t dest)
+{
+    const int64_t pages = (static_cast<int64_t>(dest) >> 12) - (static_cast<int64_t>(pc) >> 12);
+    return pages >= -(static_cast<int64_t>(1) << 20) && pages < (static_cast<int64_t>(1) << 20);
+}
+
+bool WantFar()
+{
+#ifdef RED4EXT_NATIVE_HOOK_TEST
+    return g_forceFar.load(std::memory_order_relaxed);
+#else
+    return false;
+#endif
+}
+
 bool NeedsCopy(uintptr_t page)
 {
     vm_region_extended_info_data_t info{};
@@ -333,14 +354,13 @@ kern_return_t ProtectExecutable(uintptr_t page)
     return mach_vm_protect(mach_task_self(), page, PageSize(), FALSE, prot);
 }
 
-bool AllocateNear(uintptr_t target, uint8_t** out)
+bool AllocateWindow(uintptr_t target, uint8_t** out, uintptr_t limit, int maxSteps, bool adrp)
 {
     const uintptr_t page = PageSize();
-    const uintptr_t limit = (static_cast<uintptr_t>(1) << 25) * 4 - 4;
     uintptr_t cursor = target > limit ? (target - limit) & ~(page - 1) : page;
     const uintptr_t hi = target + limit;
 
-    for (int n = 0; n < 8192 && cursor < hi; ++n)
+    for (int n = 0; n < maxSteps && cursor < hi; ++n)
     {
         mach_vm_address_t region = cursor;
         mach_vm_size_t regionSize = 0;
@@ -356,7 +376,8 @@ bool AllocateNear(uintptr_t target, uint8_t** out)
             mach_vm_address_t hint = cursor;
             if (mach_vm_allocate(mach_task_self(), &hint, page, VM_FLAGS_FIXED) == KERN_SUCCESS)
             {
-                if (InBranchRange(target, static_cast<uintptr_t>(hint)))
+                const auto got = static_cast<uintptr_t>(hint);
+                if (adrp ? InAdrpRange(target, got) : InBranchRange(target, got))
                 {
                     *out = reinterpret_cast<uint8_t*>(hint);
                     return true;
@@ -383,6 +404,62 @@ bool AllocateNear(uintptr_t target, uint8_t** out)
     return false;
 }
 
+bool AllocateNear(uintptr_t target, uint8_t** out)
+{
+    const uintptr_t limit = (static_cast<uintptr_t>(1) << 25) * 4 - 4;
+    return AllocateWindow(target, out, limit, 8192, false);
+}
+
+bool AllocateFar(uintptr_t target, uint8_t** out)
+{
+    const uintptr_t page = PageSize();
+    mach_vm_address_t hint = 0;
+    if (mach_vm_allocate(mach_task_self(), &hint, page, VM_FLAGS_ANYWHERE) == KERN_SUCCESS)
+    {
+        if (InAdrpRange(target, static_cast<uintptr_t>(hint)))
+        {
+            *out = reinterpret_cast<uint8_t*>(hint);
+            return true;
+        }
+
+        mach_vm_deallocate(mach_task_self(), hint, page);
+    }
+
+    // ponytail: ANYWHERE missed the ±4GiB ADRP window; walk gaps inside it.
+    const uintptr_t limit = (static_cast<uintptr_t>(1) << 32) - page;
+    return AllocateWindow(target, out, limit, 16384, true);
+}
+
+bool TryEncodeAdrp(uint64_t pc, uint64_t page, uint32_t rd, uint32_t* out)
+{
+    const int64_t imm = (static_cast<int64_t>(page) >> 12) - (static_cast<int64_t>(pc) >> 12);
+    if (imm < -(static_cast<int64_t>(1) << 20) || imm >= (static_cast<int64_t>(1) << 20))
+    {
+        return false;
+    }
+
+    const uint32_t bits = static_cast<uint32_t>(imm);
+    const uint32_t immlo = bits & 3u;
+    const uint32_t immhi = (bits >> 2) & 0x7FFFFu;
+    *out = 0x90000000u | (immlo << 29) | (immhi << 5) | (rd & 31u);
+    return true;
+}
+
+bool EncodeFar(uintptr_t pc, uintptr_t island, uint32_t out[3])
+{
+    const uintptr_t page = island & ~static_cast<uintptr_t>(0xFFF);
+    const uint32_t off = static_cast<uint32_t>(island & 0xFFF);
+    if (!TryEncodeAdrp(pc, page, 17, &out[0]))
+    {
+        return false;
+    }
+
+    out[1] = 0x91000000u | (off << 10) | (17u << 5) | 17u;
+    out[2] = 0xD61F0220u;
+    return true;
+}
+
+// x16/x17 only. x0-x8 are left alone so a struct return pointer survives.
 void EncodeHitStub(uint32_t* words, uint64_t counter, uint64_t detour)
 {
     words[0] = 0x580000D0u;
@@ -415,7 +492,7 @@ Site* FindSite(uintptr_t target)
     return nullptr;
 }
 
-void RememberFailure(uintptr_t target, int kr, const char* name, const char* owner)
+void RememberFailure(uintptr_t target, int kr, const char* name, const char* owner, const char* patch)
 {
     for (Failed& failed : g_failed)
     {
@@ -426,6 +503,7 @@ void RememberFailure(uintptr_t target, int kr, const char* name, const char* own
             failed.installKr = kr;
             CopyStr(failed.name, sizeof(failed.name), name != nullptr ? name : "hook");
             CopyStr(failed.owner, sizeof(failed.owner), owner != nullptr ? owner : "RED4ext");
+            CopyStr(failed.patch, sizeof(failed.patch), patch != nullptr ? patch : "near");
             return;
         }
     }
@@ -447,6 +525,15 @@ Ident* TakeIdent(uintptr_t target)
     }
 
     return nullptr;
+}
+
+int32_t FailAttach(uintptr_t target, int32_t kr, const char* patch)
+{
+    Ident* ident = TakeIdent(target);
+    RememberFailure(target, kr, ident != nullptr ? ident->name : "hook", ident != nullptr ? ident->owner : "RED4ext",
+                    patch);
+    delete ident;
+    return kr;
 }
 
 void ConsumeIdent(uintptr_t target, Node* node)
@@ -543,6 +630,14 @@ void DestroySite(Site* site)
 
     FreePage(site->page);
     delete site;
+}
+
+int32_t FailSite(Site* site, int32_t kr)
+{
+    const uintptr_t target = site->target;
+    const char* patch = site->far ? "far" : "near";
+    DestroySite(site);
+    return FailAttach(target, kr, patch);
 }
 
 bool SiteHasLive(Site* site)
@@ -663,11 +758,11 @@ bool PatchSites(Site** sites, uint32_t siteCount, const uintptr_t* hotPages, uin
 
         if (!site->installed && live)
         {
-            remember(reinterpret_cast<void*>(site->target), 4, PageOf(site->target));
+            remember(reinterpret_cast<void*>(site->target), site->patchBytes, PageOf(site->target));
         }
         else if (site->installed && !live)
         {
-            remember(reinterpret_cast<void*>(site->target), 4, PageOf(site->target));
+            remember(reinterpret_cast<void*>(site->target), site->patchBytes, PageOf(site->target));
         }
     }
 
@@ -808,22 +903,40 @@ bool PatchSites(Site** sites, uint32_t siteCount, const uintptr_t* hotPages, uin
             const bool live = SiteHasLive(site);
             if (!site->installed && live)
             {
-                uint32_t branch = 0;
-                if (!TryEncodeB(site->target, reinterpret_cast<uint64_t>(site->page), &branch))
+                if (site->far)
                 {
-                    site->installKr = -1;
-                    std::memcpy(reinterpret_cast<void*>(site->target), &site->original, 4);
-                    sys_icache_invalidate(reinterpret_cast<void*>(page), PageSize());
-                    ProtectExecutable(page);
-                    rollback();
-                    return false;
-                }
+                    uint32_t words[3]{};
+                    if (!EncodeFar(site->target, reinterpret_cast<uintptr_t>(site->page), words))
+                    {
+                        site->installKr = kErrUnreachable;
+                        std::memcpy(reinterpret_cast<void*>(site->target), site->original, site->patchBytes);
+                        sys_icache_invalidate(reinterpret_cast<void*>(page), PageSize());
+                        ProtectExecutable(page);
+                        rollback();
+                        return false;
+                    }
 
-                std::memcpy(reinterpret_cast<void*>(site->target), &branch, 4);
+                    std::memcpy(reinterpret_cast<void*>(site->target), words, site->patchBytes);
+                }
+                else
+                {
+                    uint32_t branch = 0;
+                    if (!TryEncodeB(site->target, reinterpret_cast<uint64_t>(site->page), &branch))
+                    {
+                        site->installKr = kErrUnreachable;
+                        std::memcpy(reinterpret_cast<void*>(site->target), site->original, site->patchBytes);
+                        sys_icache_invalidate(reinterpret_cast<void*>(page), PageSize());
+                        ProtectExecutable(page);
+                        rollback();
+                        return false;
+                    }
+
+                    std::memcpy(reinterpret_cast<void*>(site->target), &branch, 4);
+                }
             }
             else if (site->installed && !live)
             {
-                std::memcpy(reinterpret_cast<void*>(site->target), &site->original, 4);
+                std::memcpy(reinterpret_cast<void*>(site->target), site->original, site->patchBytes);
             }
         }
 
@@ -836,7 +949,7 @@ bool PatchSites(Site** sites, uint32_t siteCount, const uintptr_t* hotPages, uin
                 Site* site = sites[i];
                 if (PageOf(site->target) == page)
                 {
-                    std::memcpy(reinterpret_cast<void*>(site->target), &site->original, 4);
+                    std::memcpy(reinterpret_cast<void*>(site->target), site->original, site->patchBytes);
                     site->installKr = static_cast<int>(krx);
                 }
             }
@@ -850,7 +963,7 @@ bool PatchSites(Site** sites, uint32_t siteCount, const uintptr_t* hotPages, uin
                 {
                     if (PageOf(sites[i]->target) == finished[f])
                     {
-                        std::memcpy(reinterpret_cast<void*>(sites[i]->target), &sites[i]->original, 4);
+                        std::memcpy(reinterpret_cast<void*>(sites[i]->target), sites[i]->original, sites[i]->patchBytes);
                     }
                 }
 
@@ -915,7 +1028,12 @@ bool StopAndPatch(Site** sites, uint32_t siteCount)
         const bool live = SiteHasLive(site);
         if ((!site->installed && live) || (site->installed && !live))
         {
-            addHot(PageOf(site->target));
+            // Near patches refuse the whole target page. Far patches only
+            // care about the 12-byte window, checked below.
+            if (!site->far)
+            {
+                addHot(PageOf(site->target));
+            }
         }
     }
 
@@ -1005,7 +1123,29 @@ bool StopAndPatch(Site** sites, uint32_t siteCount)
                 break;
             }
 
-            if (PcOnPages(arm_thread_state64_get_pc(state), hotPages, hotCount))
+            const uint64_t pc = arm_thread_state64_get_pc(state);
+            // Far patches overwrite 12 bytes. A stopped thread with PC in
+            // (target, target+12) would resume mid-patch. PC is not rewritten:
+            // Commit retries, then fails closed, same as a hot near page.
+            bool farInterior = false;
+            for (uint32_t s = 0; s < siteCount; ++s)
+            {
+                Site* site = sites[s];
+                if (!site->far)
+                {
+                    continue;
+                }
+
+                const bool live = SiteHasLive(site);
+                const bool changing = (!site->installed && live) || (site->installed && !live);
+                if (changing && pc > site->target && pc < site->target + site->patchBytes)
+                {
+                    farInterior = true;
+                    break;
+                }
+            }
+
+            if (farInterior || PcOnPages(pc, hotPages, hotCount))
             {
                 hot = true;
                 break;
@@ -1215,6 +1355,287 @@ void NormUuid(const char* text, char* out, size_t cap)
     }
 
     out[n] = '\0';
+}
+
+struct FnSpan
+{
+    bool start = false;
+    uintptr_t next = 0;
+    uintptr_t end = 0;
+};
+
+const uint8_t* MappedFile(const mach_header_64* header, intptr_t slide, uint32_t dataoff, uint32_t datasize)
+{
+    if (datasize == 0)
+    {
+        return nullptr;
+    }
+
+    const auto* cmd = reinterpret_cast<const load_command*>(header + 1);
+    for (uint32_t i = 0; i < header->ncmds; ++i)
+    {
+        if (cmd->cmdsize < 8)
+        {
+            return nullptr;
+        }
+
+        if (cmd->cmd == LC_SEGMENT_64)
+        {
+            const auto* seg = reinterpret_cast<const segment_command_64*>(cmd);
+            const uint64_t begin = seg->fileoff;
+            const uint64_t end = begin + seg->filesize;
+            const uint64_t off = dataoff;
+            if (off >= begin && off + datasize <= end)
+            {
+                return reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(seg->vmaddr) +
+                                                        static_cast<uintptr_t>(slide) +
+                                                        static_cast<uintptr_t>(off - begin));
+            }
+        }
+
+        cmd = reinterpret_cast<const load_command*>(reinterpret_cast<const uint8_t*>(cmd) + cmd->cmdsize);
+    }
+
+    return nullptr;
+}
+
+bool DescribeFunction(uintptr_t target, FnSpan* out)
+{
+    const uint32_t images = _dyld_image_count();
+    for (uint32_t image = 0; image < images; ++image)
+    {
+        const auto* header = reinterpret_cast<const mach_header_64*>(_dyld_get_image_header(image));
+        if (header == nullptr || header->magic != MH_MAGIC_64)
+        {
+            continue;
+        }
+
+        const intptr_t slide = _dyld_get_image_vmaddr_slide(image);
+        const auto* cmd = reinterpret_cast<const load_command*>(header + 1);
+        bool contains = false;
+        uintptr_t sectionEnd = 0;
+        uint64_t textVm = 0;
+        bool haveText = false;
+        const linkedit_data_command* starts = nullptr;
+        for (uint32_t c = 0; c < header->ncmds; ++c)
+        {
+            if (cmd->cmdsize < 8)
+            {
+                break;
+            }
+
+            if (cmd->cmd == LC_SEGMENT_64)
+            {
+                const auto* seg = reinterpret_cast<const segment_command_64*>(cmd);
+                const uintptr_t segStart = static_cast<uintptr_t>(seg->vmaddr + static_cast<uint64_t>(slide));
+                const uintptr_t segEnd = segStart + static_cast<uintptr_t>(seg->vmsize);
+                if (std::strncmp(seg->segname, "__TEXT", sizeof(seg->segname)) == 0)
+                {
+                    textVm = seg->vmaddr;
+                    haveText = true;
+                }
+
+                if (target >= segStart && target < segEnd)
+                {
+                    contains = true;
+                    const auto* sect = reinterpret_cast<const section_64*>(seg + 1);
+                    for (uint32_t s = 0; s < seg->nsects; ++s, ++sect)
+                    {
+                        const uintptr_t start = static_cast<uintptr_t>(sect->addr + static_cast<uint64_t>(slide));
+                        const uintptr_t end = start + static_cast<uintptr_t>(sect->size);
+                        if (target >= start && target < end)
+                        {
+                            sectionEnd = end;
+                        }
+                    }
+                }
+            }
+            else if (cmd->cmd == LC_FUNCTION_STARTS)
+            {
+                starts = reinterpret_cast<const linkedit_data_command*>(cmd);
+            }
+
+            cmd = reinterpret_cast<const load_command*>(reinterpret_cast<const uint8_t*>(cmd) + cmd->cmdsize);
+        }
+
+        if (!contains)
+        {
+            continue;
+        }
+
+        out->end = sectionEnd;
+        if (!haveText || starts == nullptr || sectionEnd == 0)
+        {
+            return sectionEnd != 0;
+        }
+
+        const uint8_t* cursor = MappedFile(header, slide, starts->dataoff, starts->datasize);
+        if (cursor == nullptr)
+        {
+            return true;
+        }
+
+        const uint8_t* blobEnd = cursor + starts->datasize;
+        uint64_t addr = textVm + static_cast<uint64_t>(slide);
+        while (cursor < blobEnd)
+        {
+            uint64_t delta = 0;
+            int shift = 0;
+            bool ok = false;
+            while (cursor < blobEnd && shift <= 63)
+            {
+                const uint8_t byte = *cursor++;
+                delta |= static_cast<uint64_t>(byte & 0x7Fu) << shift;
+                if ((byte & 0x80u) == 0)
+                {
+                    ok = true;
+                    break;
+                }
+
+                shift += 7;
+            }
+
+            if (!ok || delta == 0)
+            {
+                break;
+            }
+
+            addr += delta;
+            if (addr == target)
+            {
+                out->start = true;
+            }
+            else if (addr > target)
+            {
+                out->next = static_cast<uintptr_t>(addr);
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+bool BranchesIntoPatch(uintptr_t target, uintptr_t end)
+{
+    if (end < target)
+    {
+        return false;
+    }
+
+    const auto* cursor = reinterpret_cast<const uint32_t*>(target);
+    const auto* last = reinterpret_cast<const uint32_t*>(end);
+    for (const uint32_t* instr = cursor; instr < last; ++instr)
+    {
+        const uint32_t word = *instr;
+        const uint64_t pc = reinterpret_cast<uint64_t>(instr);
+        uint64_t dest = 0;
+        bool branch = false;
+        if ((word & 0xFC000000u) == 0x14000000u)
+        {
+            dest = pc + static_cast<uint64_t>(SignExtend(word & 0x03FFFFFFu, 26) << 2);
+            branch = true;
+        }
+        else if ((word & 0xFF000010u) == 0x54000000u)
+        {
+            dest = pc + static_cast<uint64_t>(SignExtend((word >> 5) & 0x7FFFFu, 19) << 2);
+            branch = true;
+        }
+        else if ((word & 0x7E000000u) == 0x34000000u)
+        {
+            dest = pc + static_cast<uint64_t>(SignExtend((word >> 5) & 0x7FFFFu, 19) << 2);
+            branch = true;
+        }
+        else if ((word & 0x7E000000u) == 0x36000000u)
+        {
+            dest = pc + static_cast<uint64_t>(SignExtend((word >> 5) & 0x3FFFu, 14) << 2);
+            branch = true;
+        }
+
+        if (branch && (dest == target + 4 || dest == target + 8))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int32_t FarRefusal(uintptr_t target)
+{
+    FnSpan span;
+    if (!DescribeFunction(target, &span) || !span.start)
+    {
+        return kErrNotFunctionStart;
+    }
+
+    uintptr_t limit = span.end;
+    if (span.next != 0 && span.next < limit)
+    {
+        limit = span.next;
+    }
+
+    if (limit < target + 12)
+    {
+        return kErrFunctionTooShort;
+    }
+
+    if (PageOf(target) != PageOf(target + 11))
+    {
+        return kErrSpansPage;
+    }
+
+    if (BranchesIntoPatch(target, limit))
+    {
+        return kErrInteriorBranch;
+    }
+
+    return 0;
+}
+
+int32_t BuildTrampoline(Site* site)
+{
+    const uint32_t countInsns = site->far ? 3u : 1u;
+    uint32_t count = 0;
+    uint64_t dst = reinterpret_cast<uint64_t>(site->page + 16);
+    const auto* src = reinterpret_cast<const uint32_t*>(site->target);
+    for (uint32_t i = 0; i < countInsns; ++i)
+    {
+        const uint64_t srcPc = site->target + static_cast<uint64_t>(i) * 4u;
+        const RelocOut relocated = Relocate(src[i], srcPc, dst);
+        if (relocated.kind == RelocOut::Kind::Refused || relocated.count == 0 || count + relocated.count + 4 > 40)
+        {
+            return kErrRelocate;
+        }
+
+        std::memcpy(site->tramp + count, relocated.words, relocated.count * sizeof(uint32_t));
+        count += relocated.count;
+        dst += static_cast<uint64_t>(relocated.count) * 4u;
+    }
+
+    const uint64_t resume = site->target + static_cast<uint64_t>(countInsns) * 4u;
+    uint32_t branch = 0;
+    if (TryEncodeB(dst, resume, &branch))
+    {
+        site->tramp[count++] = branch;
+    }
+    else if (site->far && count + 4 <= 40)
+    {
+        // x16 only. x0-x8 stay intact across the jump back into the function.
+        site->tramp[count++] = 0x58000050u;
+        site->tramp[count++] = 0xD61F0200u;
+        site->tramp[count++] = static_cast<uint32_t>(resume);
+        site->tramp[count++] = static_cast<uint32_t>(resume >> 32);
+    }
+    else
+    {
+        return kErrUnreachable;
+    }
+
+    site->trampCount = count;
+    return 0;
 }
 
 } // namespace
@@ -1437,6 +1858,13 @@ void Begin()
     g_open = true;
 }
 
+#ifdef RED4EXT_NATIVE_HOOK_TEST
+void ForceFar(bool on)
+{
+    g_forceFar.store(on, std::memory_order_relaxed);
+}
+#endif
+
 void SetIdentity(void* target, const char* name, const char* owner)
 {
     std::lock_guard lock(g_mu);
@@ -1477,47 +1905,42 @@ int32_t Attach(void** ppPointer, void* detour)
     const bool fresh = site == nullptr;
     if (fresh)
     {
-        uint32_t original = 0;
-        std::memcpy(&original, reinterpret_cast<void*>(target), sizeof(original));
         uint8_t* page = nullptr;
-        if (!AllocateNear(target, &page))
+        bool far = false;
+        if (!WantFar() && AllocateNear(target, &page))
         {
-            Ident* ident = TakeIdent(target);
-            RememberFailure(target, -1, ident != nullptr ? ident->name : "hook",
-                            ident != nullptr ? ident->owner : "RED4ext");
-            delete ident;
-            return -1;
+            far = false;
+        }
+        else
+        {
+            const int32_t why = FarRefusal(target);
+            if (why != 0)
+            {
+                return FailAttach(target, why, "far");
+            }
+
+            if (!AllocateFar(target, &page))
+            {
+                return FailAttach(target, kErrUnreachable, "far");
+            }
+
+            far = true;
         }
 
         site = new Site;
         site->target = target;
-        site->original = original;
+        site->far = far;
+        site->patchBytes = far ? 12u : 4u;
+        std::memcpy(site->original, reinterpret_cast<void*>(target), site->patchBytes);
         site->page = page;
         site->next = g_sites;
         g_sites = site;
 
-        RelocOut relocated = Relocate(original, target, reinterpret_cast<uint64_t>(page + 16));
-        if (relocated.kind == RelocOut::Kind::Refused || relocated.count == 0 || relocated.count + 1 > 40)
+        const int32_t built = BuildTrampoline(site);
+        if (built != 0)
         {
-            Ident* ident = TakeIdent(target);
-            RememberFailure(target, -1, ident != nullptr ? ident->name : nullptr,
-                            ident != nullptr ? ident->owner : nullptr);
-            delete ident;
-            DestroySite(site);
-            return -1;
+            return FailSite(site, built);
         }
-
-        std::memcpy(site->tramp, relocated.words, relocated.count * sizeof(uint32_t));
-        uint32_t back = 0;
-        const uint64_t backAt = reinterpret_cast<uint64_t>(page + 16) + static_cast<uint64_t>(relocated.count) * 4u;
-        if (!TryEncodeB(backAt, target + 4, &back))
-        {
-            DestroySite(site);
-            return -1;
-        }
-
-        site->tramp[relocated.count] = back;
-        site->trampCount = relocated.count + 1;
     }
 
     for (Node* node = site->head; node != nullptr; node = node->older)
@@ -1776,6 +2199,7 @@ uint32_t CopyHookStats(HookInfo* out, uint32_t cap)
                 info.installKr = site->installKr;
                 info.installed = site->installed && node->committed && !node->detach;
                 info.hits = node->hits.load(std::memory_order_relaxed);
+                CopyStr(info.patch, sizeof(info.patch), site->far ? "far" : "near");
             }
 
             ++count;
@@ -1799,6 +2223,7 @@ uint32_t CopyHookStats(HookInfo* out, uint32_t cap)
             info.installKr = failed.installKr;
             info.installed = false;
             info.hits = 0;
+            CopyStr(info.patch, sizeof(info.patch), failed.patch);
         }
 
         ++count;
@@ -1899,7 +2324,9 @@ bool WriteHookStats(const char* path, int pid, const char* uuid)
         json += std::to_string(infos[i].installKr);
         json += ",\"installed\":";
         json += infos[i].installed ? "true" : "false";
-        json += ",\"hits\":";
+        json += ",\"patch\":\"";
+        json += infos[i].patch;
+        json += "\",\"hits\":";
         json += std::to_string(infos[i].hits);
         json += '}';
     }
