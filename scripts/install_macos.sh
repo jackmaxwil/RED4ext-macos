@@ -39,7 +39,20 @@ if [[ ! -f "$GAME/Cyberpunk2077.orig" ]]; then
     echo "Backed up the game binary to Cyberpunk2077.orig"
 fi
 
-"$HERE/codesign_macos.sh" exe "$BIN"
+# Already set up (an earlier install, or an update): nothing to re-sign. Re-signing an app needs macOS's
+# App Management permission for the terminal, so it is only done when the binary actually lacks the entitlements.
+if codesign -d --entitlements - --xml "$BIN" 2>/dev/null | grep -q allow-unsigned-executable-memory; then
+    echo "The game binary is already set up for RED4ext."
+    echo "Done. Start the game with: \"$GAME/launch_red4ext.sh\""
+    exit 0
+fi
+
+if ! "$HERE/codesign_macos.sh" exe "$BIN"; then
+    echo "Could not re-sign the game binary."
+    echo "If the error says \"Operation not permitted\": System Settings > Privacy & Security > App Management, allow"
+    echo "your terminal app, then run this again."
+    exit 1
+fi
 codesign -d --entitlements - --xml "$BIN" 2>/dev/null | grep -q allow-unsigned-executable-memory \
     || { echo "Re-signing did not apply the entitlements"; exit 1; }
 echo "Done. Start the game with: \"$GAME/launch_red4ext.sh\""
