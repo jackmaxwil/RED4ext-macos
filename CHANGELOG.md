@@ -4,6 +4,9 @@ All notable changes to the RED4ext macOS port.
 
 ## [Unreleased]
 
+- **Upstream sync:** RED4ext 1.30.0, RED4ext.SDK 1.0 (API v1), TweakXL 1.11.4, ArchiveXL 1.27.4. Plugins built against SDK 1.0 load; v0 plugins still load. Tested with `tools/cp-regress` (all scenarios) and 73 mod archives in the world.
+- **Off on macOS until verified:** the `QuickExit` hook (shutdown stays on `atexit`), ArchiveXL's collision-shape deletions and its nails-colour fallback.
+
 ## [0.1.0-rc3] - 2026-10-07
 
 Tested with `tools/cp-regress` (gate plus every in-game scenario: TweakXL, ArchiveXL, ModMenu, ModMenu UI, TweakXL hot reload, loading a save).
