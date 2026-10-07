@@ -27,7 +27,7 @@ Apple silicon. See `README.md` for install, build and the test loop.
 | `src/plugin_check/` | `red4ext_plugin_check DB plugin.dylib...`: the loader's address gate as a CLI. Used by the launcher, `cp-gate` and the release script. |
 | `src/loader/` | Windows `winmm.dll` proxy (upstream, not built on macOS). |
 | `deps/` | Submodules (see `.gitmodules`): `red4ext.sdk` (jackmaxwil/RED4ext.SDK-macos, holds the address DB), `fishhook`, `fmt`, `spdlog`, `simdjson`, `toml11`, `ordered-map`, `redscript`, and Windows-only `detours`, `wil`. |
-| `scripts/` | `install_macos.sh` (release one-time setup), `macos_install.sh` (install from a source build), `launch_red4ext.sh`, `codesign_macos.sh` + `red4ext_entitlements.plist`, `create_release.sh`, `ci_validate.sh`, `generate_symbol_mapping.py`. |
+| `scripts/` | `install_macos.sh` (release one-time setup), `macos_install.sh` (install from a source build), `launch_red4ext.sh`, `codesign_macos.sh` + `red4ext_entitlements.plist`, `create_release.sh`, `generate_symbol_mapping.py`. |
 | `tools/` | `cp-dev` (build, sign, install, test), `cp-run` (unattended in-game test), `cp-gate` (offline gate), `cp-rollback` (restore stock binary), `autotest/` (redscript test driver and scenarios). |
 | `tests/` | CTest suites, including `native_hook_tests` (run in CI). |
 
