@@ -13,7 +13,7 @@ FILTER=${1:-}
 
 # scenario:plugins
 SCENARIOS="tweakxl:TweakXL archivexl:ArchiveXL modmenu:ModMenu tweakxl-reload:TweakXL
-modmenu-ui:ModMenu,TweakXL,ArchiveXL load:ModMenu,TweakXL,ArchiveXL"
+modmenu-ui:ModMenu,TweakXL,ArchiveXL load:ModMenu,TweakXL,ArchiveXL loadorder:ArchiveXL"
 
 results=()
 fail=0
@@ -32,7 +32,20 @@ for entry in $SCENARIOS; do
     plugins=${entry#*:}
     [[ -z "$FILTER" || "$scenario" == *"$FILTER"* ]] || continue
     echo "[cp-regress] $scenario ($plugins)"
-    line=$(CP_PLUGINS="$plugins" "$TOOLS_DIR/cp-run" "$scenario" 2>&1 | grep -E '^\[cp-run\] (PASS|FAIL|PRECONDITION)' | tail -1)
+    modenv=()
+    if [[ "$scenario" == loadorder ]]; then
+        # Two test archives replacing the same file, built from the game's own German and French UI strings.
+        game="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
+        lo=$(mktemp -d)
+        python3 "$TOOLS_DIR/mkarchive.py" "$game/archive/Mac/content/lang_de_text.archive" \
+            'base\localization\de-de\onscreens\onscreens.json' 'base\localization\en-us\onscreens\onscreens.json' \
+            "$lo/agerman.archive" >/dev/null
+        python3 "$TOOLS_DIR/mkarchive.py" "$game/archive/Mac/content/lang_fr_text.archive" \
+            'base\localization\fr-fr\onscreens\onscreens.json' 'base\localization\en-us\onscreens\onscreens.json' \
+            "$lo/_french.archive" >/dev/null
+        modenv=(ARCHIVEXL_MOD_DIR="$lo")
+    fi
+    line=$(env ${modenv[@]+"${modenv[@]}"} CP_PLUGINS="$plugins" "$TOOLS_DIR/cp-run" "$scenario" 2>&1 | grep -E '^\[cp-run\] (PASS|FAIL|PRECONDITION)' | tail -1)
     if [[ "$line" == *"] PASS "* ]]; then
         results+=("PASS  $scenario  ${line##* -> }")
     else
