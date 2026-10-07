@@ -42,13 +42,15 @@ static void RED4extShutdown()
             return;
         }
 
-        // Call Shutdown() before Destruct() on macOS
+        // Normally already done by the atexit handler registered from the main() hook; this covers a process
+        // that exits before main() was reached.
         auto app = App::Get();
-        if (app)
+        if (!app)
         {
-            app->Shutdown();
+            return;
         }
 
+        app->Shutdown();
         App::Destruct();
     }
     catch (const std::exception& e)

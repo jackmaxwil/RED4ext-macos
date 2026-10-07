@@ -24,6 +24,18 @@ void _Main(int aArgc, char** aArgv)
     try
     {
         App::Get()->Startup();
+
+        // Shut down before C++ static destructors run (the dylib destructor fires after them, when the systems'
+        // mutexes are already gone). atexit handlers registered after static init run first, in reverse order.
+        std::atexit(
+            []()
+            {
+                if (auto app = App::Get())
+                {
+                    app->Shutdown();
+                    App::Destruct();
+                }
+            });
     }
     catch (const std::exception& e)
     {

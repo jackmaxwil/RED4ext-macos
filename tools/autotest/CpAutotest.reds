@@ -4,8 +4,6 @@
 // cp-run turns them into results.json.
 module CpAutotest
 
-native func RED4ext_TestReport(line: String) -> Void;
-
 public func CpReport(json: String) -> Void {
     RED4ext_TestReport(json);
 }
@@ -14,18 +12,24 @@ public func CpCheck(name: String, pass: Bool, detail: String) -> Void {
     CpReport("{\"event\":\"CHECK\",\"name\":\"" + name + "\",\"pass\":" + ToString(pass) + ",\"detail\":\"" + detail + "\"}");
 }
 
+// Per-scenario checks that run at the main menu. Phase 3 adds tweakxl / archivexl / modmenu cases.
+public func CpRunMenuChecks(scenario: String) -> Void {
+    CpCheck("menu_reached", true, scenario);
+}
+
 @wrapMethod(SingleplayerMenuGameController)
 protected cb func OnInitialize() -> Bool {
     let result = wrappedMethod();
     CpReport("{\"event\":\"MAIN_MENU\",\"scenario\":\"" + CpAutotestScenario() + "\"}");
-    let handler = this.GetSystemRequestsHandler();
-    if handler.HasLastCheckpoint() {
+    if Equals(CpAutotestScenario(), "load") {
+        // The save list may not be cached yet while the menu initializes, so do not gate on HasLastCheckpoint().
         CpReport("{\"event\":\"LOAD_LAST_CHECKPOINT\"}");
-        handler.LoadLastCheckpoint(false);
+        this.GetSystemRequestsHandler().LoadLastCheckpoint(false);
     } else {
-        CpCheck("has_checkpoint", false, "no save to load");
+        // Menu scenarios: TweakDB, resources and natives are all live at the main menu.
+        CpRunMenuChecks(CpAutotestScenario());
         CpReport("{\"event\":\"DONE\"}");
-        handler.ExitGame();
+        this.GetSystemRequestsHandler().ExitGame();
     }
     return result;
 }
@@ -33,9 +37,10 @@ protected cb func OnInitialize() -> Bool {
 @wrapMethod(PlayerPuppet)
 protected cb func OnGameAttached() -> Bool {
     let result = wrappedMethod();
+    // Also fires for the main-menu scene's puppet; cp-run only counts events after LOAD_LAST_CHECKPOINT and
+    // finishes on the first PLAYER_ATTACHED that follows it.
     CpReport("{\"event\":\"PLAYER_ATTACHED\"}");
     CpCheck("player_attached", true, "");
     // Scenario-specific checks (tweakxl, archivexl, modmenu) are added in Phase 3.
-    CpReport("{\"event\":\"DONE\"}");
     return result;
 }

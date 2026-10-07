@@ -218,6 +218,10 @@ void App::Destruct()
 
     Log::info("RED4ext is terminating...");
 
+#ifdef RED4EXT_PLATFORM_MACOS
+    // Destruct only runs at process exit on macOS (the dylib is never unloaded early). Restoring patched code then
+    // gains nothing and races any thread still inside a hooked function, so the hooks stay installed.
+#else
     // Detaching hooks here and not in dtor, since the dtor can be called by CRT when the processes exists. We don't
     // really care if this will be called or not when the game exist ungracefully.
 
@@ -243,6 +247,8 @@ void App::Destruct()
             transaction.Commit();
         }
     }
+
+#endif
 
     g_app.reset(nullptr);
     Log::info("RED4ext has been terminated");
@@ -275,9 +281,17 @@ void App::Shutdown()
 {
     Log::info("RED4ext is shutting down...");
 
+    // One failing system must not skip the others (or the logs and hook stats written after them).
     for (auto& system : m_systems | std::ranges::views::reverse)
     {
-        system->Shutdown();
+        try
+        {
+            system->Shutdown();
+        }
+        catch (const std::exception& e)
+        {
+            Log::error("System {} failed to shut down: {}", static_cast<int32_t>(system->GetType()), e.what());
+        }
     }
 
     m_systems.clear();

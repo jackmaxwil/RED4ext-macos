@@ -149,7 +149,10 @@ OUTCOME=timeout
 SHOT_AT=$((START + 60))
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
-    if grep -q '"event":"DONE"' "$LOGS_DIR/autotest.log" 2>/dev/null; then OUTCOME=results; sleep 5; break; fi
+    if [[ -f "$LOGS_DIR/autotest.log" ]] &&
+        awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/PLAYER_ATTACHED/{f=1} /"event":"DONE"/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log"; then
+        OUTCOME=results; sleep 5; break
+    fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
     sleep 2
@@ -188,8 +191,14 @@ for line in lines:
     except ValueError:
         pass
 if events:
+    # Only what happens after the load request counts (the main-menu scene attaches a puppet too).
+    loads = [i for i, e in enumerate(events) if e.get("event") == "LOAD_LAST_CHECKPOINT"]
+    if loads:
+        events = events[loads[0]:]
+        done = any(e.get("event") == "PLAYER_ATTACHED" for e in events)
+    else:
+        done = any(e.get("event") == "DONE" for e in events)
     checks = [e for e in events if e.get("event") == "CHECK"]
-    done = any(e.get("event") == "DONE" for e in events)
     res = {"pass": done and bool(checks) and all(c.get("pass") for c in checks), "checks": checks, "events": events}
     json.dump(res, open(os.path.join(run, "results.json"), "w"), indent=2)
 PY
