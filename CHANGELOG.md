@@ -4,6 +4,9 @@ All notable changes to the RED4ext macOS port.
 
 ## [Unreleased]
 
+## [0.1.0-rc4] - 2026-10-07
+
+- **One-command install:** `curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash` downloads the newest release, checks its checksum and the game build, installs it and runs the one-time setup. The same script updates, uninstalls, checks an install (`doctor`) and starts the game (`play`). Releases are built on GitHub Actions and carry `red4ext/VERSION` and `red4ext/BUILD_INFO.json` (the commit of every component).
 - **Upstream sync:** RED4ext 1.30.0, RED4ext.SDK 1.0 (API v1), TweakXL 1.11.4, ArchiveXL 1.27.4. Plugins built against SDK 1.0 load; v0 plugins still load. Tested with `tools/cp-regress` (all scenarios) and 73 mod archives in the world.
 - **TweakXL:** overrides of fields a new record inherits from its base (for example a custom stat's `enumName`) could be silently lost, depending on which other tweaks were installed. Fixed.
 - **Archive load order matches Windows:** case-insensitive name order, first archive wins a conflict (tested with generated archives; `tools/cp-regress` covers it).

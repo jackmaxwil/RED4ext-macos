@@ -9,22 +9,22 @@ Supported: **Cyberpunk 2077 2.3.1 (patch 2.31), Steam, Apple silicon Mac.** Othe
 RED4ext is fail-closed. It uses only game addresses that have been verified for this exact game build, and it refuses to
 load a plugin that needs any unverified address. The game then starts without that plugin.
 
-## Install (players)
+## Install
 
-1. Quit the game.
-2. Download `RED4ext-macOS-arm64-VERSION.zip` from the
-   [Releases page](https://github.com/jackmaxwil/RED4ext-macos/releases) into `~/Downloads`.
-3. Open Terminal and run these commands one at a time. Replace `VERSION` with the version you downloaded.
-   ```bash
-   GAME="$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077"
-   cd ~/Downloads && unzip -o RED4ext-macOS-arm64-VERSION.zip
-   ditto RED4ext-macOS-arm64-VERSION "$GAME"
-   "$GAME/red4ext/macos/scripts/install_macos.sh"
-   ```
-   The last command runs once. It checks your game version, backs up the game binary to `Cyberpunk2077.orig`, and
-   re-signs the binary so RED4ext can load and hook it.
+Quit the game, open Terminal and run:
 
-[docs/INSTALL_MACOS.md](docs/INSTALL_MACOS.md) has the same steps and lists every file in the release.
+```bash
+curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash
+```
+
+- Update: `curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash -s -- update`
+- Uninstall: `curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash -s -- uninstall`
+- Check your setup: `curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash -s -- doctor`
+- Play with mods: `curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash -s -- play`
+
+**Requirements:** Cyberpunk 2077 2.3.1 (Steam) on an Apple silicon Mac.
+
+Prefer to do it by hand? See [docs/INSTALL_MACOS.md](docs/INSTALL_MACOS.md).
 
 ## Play
 
@@ -51,12 +51,18 @@ Put each kind of mod where it would go on Windows, inside the game folder:
 
 ## Uninstall
 
-1. Steam > Cyberpunk 2077 > Properties > Installed Files > **Verify integrity of game files**. This restores the
-   original game binary.
-2. In the game folder, delete `red4ext/`, `launch_red4ext.sh`, `Cyberpunk2077.orig`, `r6/input/modmenu.xml`,
-   `r6/input/tweakxl.xml` and `r6/scripts/zz_red4ext_plugins/`.
+```bash
+curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash -s -- uninstall
+```
+
+It removes RED4ext, its plugins and their key bindings, and restores the original game binary. Your mods in
+`archive/pc/mod`, `r6/scripts` and `r6/tweaks` stay. Steam > Cyberpunk 2077 > Properties > Installed Files > **Verify
+integrity of game files** also restores the original game binary. To uninstall by hand, see
+[docs/INSTALL_MACOS.md](docs/INSTALL_MACOS.md#uninstall).
 
 ## Troubleshooting
+
+First run `curl -fsSL https://raw.githubusercontent.com/jackmaxwil/RED4ext-macos/main/install.sh | bash -s -- doctor`. It changes nothing and says what is wrong.
 
 - **The game starts without mods:** you started it from Steam. Start it with `launch_red4ext.sh`.
 - **`install_macos.sh` says the game build does not match:** your game version is not supported by this release. Wait
@@ -105,8 +111,10 @@ background) and prints a pass/fail table. Run it before every release.
 matches the address database, that the verified entries validate, and that every address each plugin uses is verified.
 After a game update, follow the patch-day steps in its header.
 
-Release: `scripts/create_release.sh VERSION` builds everything in Release mode, runs `tools/cp-gate`, and writes
-`release/RED4ext-macOS-arm64-VERSION.zip`.
+Release: add a `## [X.Y.Z]` section to `CHANGELOG.md`, then push the tag `vX.Y.Z` (or `vX.Y.Z-rcN`, a prerelease).
+`.github/workflows/release.yml` builds every component at `main`, runs the gate (without the installed-game check) and
+publishes the zip, `install.sh` and `SHA256SUMS`. `scripts/create_release.sh VERSION` does the same build locally into
+`release/`. Each zip has `red4ext/VERSION` and `red4ext/BUILD_INFO.json` (the commit of every component).
 
 ## Repository layout
 
@@ -115,6 +123,7 @@ Release: `scripts/create_release.sh VERSION` builds everything in Release mode, 
 | `src/dll/` | The loader. `Platform/NativeHook*` is the arm64 hook engine, `Platform/PluginRequirements.cpp` the plugin address gate. |
 | `src/plugin_check/` | `red4ext_plugin_check`, the same address gate as a command-line tool. |
 | `deps/` | Git submodules. `deps/red4ext.sdk` is the macOS SDK fork and holds `cyberpunk2077_addresses.json`. |
+| `install.sh` | The one-command installer (install, update, uninstall, doctor, play). Also attached to each release. |
 | `scripts/` | Install, launch, signing and release scripts. |
 | `tools/` | `cp-dev`, `cp-run`, `cp-gate`, `cp-rollback` and the in-game autotest scenarios. |
 | `tests/` | Unit, integration and native hook tests (CTest). |
