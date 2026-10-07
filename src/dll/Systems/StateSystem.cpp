@@ -137,7 +137,7 @@ std::string JsonName(RED4ext::CName aName)
 // RED4EXT_DUMP_RTTI=1: write every native/scripted class's layout as the macOS game built it to
 // logs/rtti_layout_macos.json. Reads only what docs/re/reflection_layout.md confirmed from macOS code:
 // IRTTISystem::GetClasses (+0x70, takes the RTTI lock), the CBaseRTTIType virtuals, CClass parent @0x10, props @0x28,
-// flags @0x70, and CProperty type @0x00, name @0x08, valueOffset @0x20, flags @0x28. CClass::unk118 is a lazily built
+// funcs @0x48, staticFuncs @0x58, flags @0x70, CBaseFunction fullName @0x08, and CProperty type @0x00, name @0x08, valueOffset @0x20, flags @0x28. CClass::unk118 is a lazily built
 // cache (empty for unused classes) and is not read.
 void DumpRttiLayout()
 {
@@ -174,7 +174,19 @@ void DumpRttiLayout()
                                 JsonName(prop->name), typeName, prop->valueOffset,
                                 *reinterpret_cast<const uint64_t*>(&prop->flags));
         }
-        body += "]}";
+        body += "]";
+        auto appendFuncs = [&body](const char* aKey, auto& aList) {
+            body += fmt::format(",\"{}\":[", aKey);
+            for (uint32_t i = 0; i < aList.size; ++i)
+            {
+                auto func = aList.entries[i];
+                body += fmt::format("{}\"{}\"", i ? "," : "", func ? JsonName(func->fullName) : "");
+            }
+            body += "]";
+        };
+        appendFuncs("funcs", cls->funcs);
+        appendFuncs("staticFuncs", cls->staticFuncs);
+        body += "}";
     }
 
     std::string typeBody;

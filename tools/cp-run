@@ -145,7 +145,8 @@ rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.
 # enabled plugins' Scripts folders are staged under r6/scripts for the compile.
 STAGE="$GAME_DIR/r6/scripts/zz_red4ext_plugins"
 rm -rf "$STAGE"
-if [[ "$PLUGINS_ENABLED" == true ]]; then
+# rttidump records what plugins register natively, so it compiles no plugin scripts.
+if [[ "$PLUGINS_ENABLED" == true && "$SCENARIO" != rttidump ]]; then
     IFS=, read -ra enabled <<<"$CP_PLUGINS"
     for name in "${enabled[@]}"; do
         [[ -d "$R4E_DIR/plugins/$name/Scripts" ]] || continue

@@ -33,10 +33,10 @@ install -m 755 "$BUILD/libs/RED4ext.dylib" "$R4E_DIR/RED4ext.dylib"
 cp "$ROOT/deps/red4ext.sdk/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.json"
 rm -f "$R4E_DIR/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.loader.json"
 
-# name:repo:built dylib:script dir installed into r6/scripts/<name> (or -)
-PLUGIN_TABLE="ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib:- TweakXL:cp2077-tweak-xl:TweakXL.dylib:- ModMenu:cp2077-modmenu:libModMenu.dylib:scripts/Scripts/ModMenu"
+# name:repo:built dylib:script dir (or -):data dir installed as the plugin's Data/ (or -)
+PLUGIN_TABLE="ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib:-:- TweakXL:cp2077-tweak-xl:TweakXL.dylib:scripts:data ModMenu:cp2077-modmenu:libModMenu.dylib:scripts/Scripts/ModMenu:-"
 for entry in $PLUGIN_TABLE; do
-    IFS=: read -r name repo lib scripts <<<"$entry"
+    IFS=: read -r name repo lib scripts data <<<"$entry"
     [[ ",$PLUGINS," == *",$name,"* ]] || continue
     echo "[cp-dev] building $name"
     build "$WS/$repo" "$WS/$repo/build-dev"
@@ -47,6 +47,10 @@ for entry in $PLUGIN_TABLE; do
         # Plugin scripts live with the plugin; cp-run compiles them only when the plugin is loaded.
         rm -rf "$GAME_DIR/r6/scripts/$name" "$R4E_DIR/plugins/$name/Scripts"
         cp -R "$WS/$repo/$scripts" "$R4E_DIR/plugins/$name/Scripts"
+    fi
+    if [[ "$data" != - ]]; then
+        rm -rf "$R4E_DIR/plugins/$name/Data"
+        cp -R "$WS/$repo/$data" "$R4E_DIR/plugins/$name/Data"
     fi
 done
 export CP_PLUGINS="${CP_PLUGINS:-$PLUGINS}"
