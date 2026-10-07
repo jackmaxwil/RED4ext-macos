@@ -12,6 +12,15 @@
 template<typename T>
 class GameStateHook
 {
+    // Index of IGameState::OnEnter in the vtable; OnUpdate and OnExit follow it.
+    // MSVC emits one destructor slot. The macOS game is built with clang (Itanium ABI), which emits two
+    // (complete + deleting), so every later virtual moves down one slot.
+#ifdef RED4EXT_PLATFORM_MACOS
+    static constexpr size_t OnEnterSlot = 4;
+#else
+    static constexpr size_t OnEnterSlot = 3;
+#endif
+
 public:
     using Func_t = bool (*)(T*, RED4ext::CGameApplication*);
 
@@ -32,9 +41,9 @@ public:
 
         Log::trace("Changing virtual functions for '{}' state at {}...", name, fmt::ptr(vtbl));
 
-        m_onEnter.orig = reinterpret_cast<Func_t>(vtbl[3]);
-        m_onUpdate.orig = reinterpret_cast<Func_t>(vtbl[4]);
-        m_onExit.orig = reinterpret_cast<Func_t>(vtbl[5]);
+        m_onEnter.orig = reinterpret_cast<Func_t>(vtbl[OnEnterSlot]);
+        m_onUpdate.orig = reinterpret_cast<Func_t>(vtbl[OnEnterSlot + 1]);
+        m_onExit.orig = reinterpret_cast<Func_t>(vtbl[OnEnterSlot + 2]);
 
         if (SwapVFuncs(aState, m_onEnter.detour, m_onUpdate.detour, m_onExit.detour))
         {
@@ -122,29 +131,29 @@ private:
 
         try
         {
-            const auto addr = &vtbl[3];
+            const auto addr = &vtbl[OnEnterSlot];
 
             constexpr auto VirtualFuncs = 3;
             constexpr auto size = VirtualFuncs * sizeof(addr);
 
             MemoryProtection _(addr, size, Platform::Memory_ReadWrite);
 
-            auto onEnter = &vtbl[3];
-            Log::trace("Changing 'OnEnter' function at {} from {} to {}...", fmt::ptr(onEnter), fmt::ptr(vtbl[3]),
+            auto onEnter = &vtbl[OnEnterSlot];
+            Log::trace("Changing 'OnEnter' function at {} from {} to {}...", fmt::ptr(onEnter), fmt::ptr(vtbl[OnEnterSlot]),
                           fmt::ptr(aOnEnter));
 
             *onEnter = aOnEnter;
             Log::trace("'OnEnter' function was changed successfully");
 
-            auto onUpdate = &vtbl[4];
-            Log::trace("Changing 'OnUpdate' function at {} from {} to {}...", fmt::ptr(onUpdate), fmt::ptr(vtbl[4]),
+            auto onUpdate = &vtbl[OnEnterSlot + 1];
+            Log::trace("Changing 'OnUpdate' function at {} from {} to {}...", fmt::ptr(onUpdate), fmt::ptr(vtbl[OnEnterSlot + 1]),
                           fmt::ptr(aOnUpdate));
 
             *onUpdate = aOnUpdate;
             Log::trace("'OnUpdate' function was changed successfully");
 
-            auto onExit = &vtbl[5];
-            Log::trace("Changing 'OnExit' function at {} from {} to {}...", fmt::ptr(onExit), fmt::ptr(vtbl[5]),
+            auto onExit = &vtbl[OnEnterSlot + 2];
+            Log::trace("Changing 'OnExit' function at {} from {} to {}...", fmt::ptr(onExit), fmt::ptr(vtbl[OnEnterSlot + 2]),
                           fmt::ptr(aOnExit));
 
             *onExit = aOnExit;
