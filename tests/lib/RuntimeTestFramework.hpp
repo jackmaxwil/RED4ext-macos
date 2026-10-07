@@ -147,7 +147,7 @@ private:
             TestFramework::RuntimeTestRunner::GetInstance().RegisterTest(#name, []() -> bool {
 #define END_RUNTIME_TEST                                                                                               \
     return true;                                                                                                       \
-    });                                                                                                            \
+    });                                                                                                                \
     }
 } // namespace TestFramework
 #endif

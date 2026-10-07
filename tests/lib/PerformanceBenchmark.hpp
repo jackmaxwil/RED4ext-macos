@@ -150,7 +150,7 @@ private:
     {                                                                                                                  \
             TestFramework::BenchmarkRunner::GetInstance().RegisterBenchmark(#name, []() {
 #define END_BENCHMARK(iter_count)                                                                                      \
-    }, iter_count);                                                                                                \
+    }, iter_count);                                                                                                    \
     }
 } // namespace TestFramework
 #endif
