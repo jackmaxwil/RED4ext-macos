@@ -442,21 +442,13 @@ macOS enforces Write XOR Execute. You cannot:
 - Execute writable memory
 - Directly patch code at runtime
 
-### Solution: Frida Gadget
+### Solution: native hook engine
 
-Frida provides runtime code modification that works with W^X:
+RED4ext patches game code itself (`src/dll/Platform/NativeHook*`). This works because the re-signed game carries `com.apple.security.cs.allow-unsigned-executable-memory`:
 
-```javascript
-// red4ext_hooks.js
-Interceptor.attach(ptr("0x102B7BAB0"), {
-    onEnter: function(args) {
-        console.log("TweakDB::TryLoad called");
-    },
-    onLeave: function(retval) {
-        console.log("Result:", retval);
-    }
-});
-```
+1. `mach_vm_protect(RW | VM_PROT_COPY)` on the target page, write the branch, then `mach_vm_protect(R | X)` without `VM_PROT_COPY`.
+2. `sys_icache_invalidate` on the patched page.
+3. Trampolines and branch islands live in anonymous pages within ±128 MiB of the target (RW, then RX). No `MAP_JIT`.
 
 ### RED4ext Hooking API
 

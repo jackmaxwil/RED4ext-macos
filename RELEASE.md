@@ -47,7 +47,7 @@ git push origin main --tags
 ## Checklist
 
 Before release:
-- [ ] All 126 SDK addresses resolved
+- [ ] Every address hash each shipped plugin needs is verified (`deps/red4ext.sdk/scripts/plugin_requirements.py`)
 - [ ] TweakXL plugin tested
 - [ ] macos_install.sh works on clean system
 - [ ] README updated

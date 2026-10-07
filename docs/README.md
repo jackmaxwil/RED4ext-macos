@@ -4,18 +4,15 @@
 
 | Document | Description |
 |----------|-------------|
-| [STATUS.md](STATUS.md) | Current port status + verification checklist |
-| [MACOS_PORT.md](MACOS_PORT.md) | **macOS Installation & Usage Guide** |
+| [STATUS.md](STATUS.md) | Current port status |
+| [../BUILDING.md](../BUILDING.md) | Build and install |
 | [MACOS_CODE_SIGNING.md](MACOS_CODE_SIGNING.md) | Code signing requirements |
-| [FRIDA_INTEGRATION.md](FRIDA_INTEGRATION.md) | Frida Gadget technical details |
-| [api/](api/) | Plugin API documentation |
 
 ## Development Documentation
 
 | Document | Description |
 |----------|-------------|
 | [porting/](porting/) | macOS port development history |
-| [porting/HOOKING_ALTERNATIVES.md](porting/HOOKING_ALTERNATIVES.md) | Hooking approach analysis |
 
 ---
 
@@ -44,4 +41,4 @@ cd "~/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077"
 
 ### Building Plugins
 
-See [MACOS_PORT.md#plugin-development](MACOS_PORT.md#plugin-development)
+See the plugin repos (TweakXL, ArchiveXL, ModMenu) for working CMake setups against `RED4ext.SDK`.

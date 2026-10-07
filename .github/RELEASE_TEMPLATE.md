@@ -8,7 +8,7 @@ This is an early macOS port. **Not all features have full parity with Windows.**
 
 - Addresses resolved via pattern matching (not all runtime-verified)
 - Only TweakXL plugin tested
-- Different hook mechanism than Windows (Frida vs Detours)
+- Different hook mechanism than Windows (native arm64 engine vs Detours)
 - Please report issues on GitHub
 
 ## Downloads
@@ -37,9 +37,7 @@ cd RED4ext-macOS-ARM64-v${VERSION}
 ```
 red4ext/
 ├── RED4ext.dylib                 # Main loader
-├── FridaGadget.config            # Frida config  
-├── red4ext_hooks.js              # Hook scripts
-├── cyberpunk2077_addresses.json  # Address database
+├── bin/x64/cyberpunk2077_addresses.json  # Address database
 └── plugins/                      # Plugin directory
 
 scripts/
@@ -53,7 +51,7 @@ scripts/
 | Item | Status |
 |------|--------|
 | Game Version | Cyberpunk 2077 v2.3.1 |
-| SDK Addresses | 126 resolved (not all verified) |
+| SDK Addresses | Only entries marked verified resolve |
 | TweakXL | ✅ Basic functionality |
 | Other plugins | ❓ Untested |
 
@@ -69,6 +67,3 @@ scripts/
 ${SHA_ZIP}  RED4ext-macOS-ARM64-v${VERSION}.zip
 ```
 
----
-
-**FridaGadget.dylib downloaded during installation.**

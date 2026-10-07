@@ -2,11 +2,11 @@
 
 ## Project Context
 
-RED4ext is a script extender/mod loader for Cyberpunk 2077, ported from Windows to macOS ARM64. This port replaces Windows-specific APIs (Detours, PE loading) with macOS equivalents (Frida/fishhook, Mach-O parsing).
+RED4ext is a script extender/mod loader for Cyberpunk 2077, ported from Windows to macOS ARM64. This port replaces Windows-specific APIs (Detours, PE loading) with macOS equivalents (a native arm64 hook engine, fishhook, Mach-O parsing).
 
 ## Current Status (Canonical)
 
-See `docs/STATUS.md` for the up-to-date “what works / what’s risky” snapshot and the quick validation checklist.
+See `docs/STATUS.md` for a short summary. The authoritative progress table is §0 of `~/Development/cyberpunk/RESUME_PLAN.md`; address evidence is in `deps/red4ext.sdk/docs/ADDRESS_AUDIT.md`.
 
 ## Development Practices
 
@@ -19,10 +19,10 @@ See `docs/STATUS.md` for the up-to-date “what works / what’s risky” snapsh
 
 ### Hooking and Injection
 
-1. **Frida for hooks.** Use Frida Gadget (`FridaGadget.dylib`) for runtime function hooking via JavaScript (`red4ext_hooks.js`).
-2. **fishhook for symbols.** Use fishhook for rebinding dyld symbol stubs when Frida is unavailable.
+1. **Native hooks.** Inline hooks go through the in-process engine in `src/dll/Platform/NativeHook*`. Frida is not used.
+2. **fishhook for symbols.** Use fishhook for rebinding dyld symbol stubs.
 3. **No Detours.** Microsoft Detours is Windows-only; never reference it in macOS code paths.
-4. **Address resolution.** All function addresses come from `cyberpunk2077_addresses.json` via the SDK's `UniversalRelocBase::Resolve`.
+4. **Address resolution.** All function addresses come from `cyberpunk2077_addresses.json` via the SDK's `UniversalRelocBase::Resolve`. Only entries marked `"verified": true` resolve; the loader refuses a plugin unless every address hash compiled into it is verified.
 
 ### Binary Analysis
 
@@ -43,8 +43,7 @@ src/
 └── shared/        # Cross-platform utilities
 deps/
 ├── fishhook/      # Symbol rebinding for macOS
-├── red4ext.sdk/   # Embedded SDK copy
-└── frida/         # Frida Gadget (runtime)
+└── red4ext.sdk/   # Embedded SDK copy
 scripts/           # Python analysis tools for address discovery
 ```
 
@@ -80,7 +79,7 @@ scripts/           # Python analysis tools for address discovery
 
 1. **Build test.** `cmake .. && make` must succeed with zero errors on macOS.
 2. **Runtime test.** Launch game via `launch_red4ext.sh` and verify logs show successful hook attachment.
-3. **Address validation.** Run `scripts/generate_addresses.py` and verify all 126 SDK addresses resolve.
+3. **Address validation.** Run `deps/red4ext.sdk/scripts/validate_addresses.py`, and `deps/red4ext.sdk/scripts/plugin_requirements.py <plugin.dylib>` to list a plugin's unverified addresses.
 
 ## Address Discovery
 
@@ -105,10 +104,10 @@ scripts/           # Python analysis tools for address discovery
 
 ## Common Pitfalls
 
-1. **Null address resolution.** If `Resolve()` returns 0, the address is missing from the JSON—add it.
-2. **Frida not loading.** Ensure `FridaGadget.dylib` is signed and in the correct path.
+1. **Null address resolution.** If `Resolve()` returns 0, the address is missing from the JSON or not yet verified. Verify it with evidence (see `ADDRESS_AUDIT.md`); never mark an entry verified on a guess.
+2. **Hooks refused.** The game binary must be re-signed with `scripts/red4ext_entitlements.plist` (`allow-unsigned-executable-memory`).
 3. **Plugin crash on load.** Check plugin's address resolver override matches current game version.
-4. **Hooks not triggering.** Verify address offset is correct and hook script is loaded in `red4ext_hooks.js`.
+4. **Hooks not triggering.** Verify the address offset is correct and the entry is verified.
 
 ## Cyberpunk 2077 Internals Knowledge
 

@@ -2,6 +2,12 @@
 
 All notable changes to the RED4ext macOS port.
 
+## [Unreleased]
+
+- Replaced the Frida Gadget backend with a native in-process arm64 hook engine (`src/dll/Platform/NativeHook*`).
+- Addresses resolve only from DB entries marked verified; the loader refuses plugins that need unverified addresses.
+- Correction to 1.0.0-beta below: the Frida backend only logged calls and never ran RED4ext or plugin detours, and the "126/126 resolved" and "8/8 hooks" figures were not verified. See `docs/STATUS.md`.
+
 ## [1.0.0-beta] - 2026-01-03 - Initial macOS Release (Beta)
 
 > ⚠️ **Beta Release** - Not all features verified. Please report issues.

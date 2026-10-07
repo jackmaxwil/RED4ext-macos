@@ -21,7 +21,6 @@
 | Tool | Purpose | Install |
 |------|---------|---------|
 | Python 3.10+ | Address regeneration | `brew install python@3.12` |
-| xz | Frida download | `brew install xz` |
 
 ### Verify Prerequisites
 
@@ -34,7 +33,7 @@ python3 --version        # Need 3.10+ for address scripts
 
 # Install missing tools
 xcode-select --install   # If Xcode CLI not installed
-brew install cmake xz    # If CMake/xz missing
+brew install cmake       # If CMake missing
 ```
 
 ---
@@ -132,10 +131,11 @@ cd /path/to/RED4ext
 
 The installer will:
 1. Detect Cyberpunk 2077 installation
-2. Copy RED4ext.dylib
-3. Download and install Frida Gadget
-4. Create launch script
-5. Set up directories
+2. Copy RED4ext.dylib and the address database
+3. Create launch script
+4. Set up directories
+
+Hooking also needs the game binary re-signed with `allow-unsigned-executable-memory`: run `./scripts/macos_resign_backup.sh`, then `./scripts/macos_resign_for_hooks.sh`.
 
 ### Manual Installation
 
@@ -152,13 +152,6 @@ cp build/libs/RED4ext.dylib "$GAME_DIR/red4ext/"
 
 # Copy address database
 cp deps/red4ext.sdk/cyberpunk2077_addresses.json "$GAME_DIR/red4ext/bin/x64/"
-
-# Set up Frida (downloads ~50MB)
-./scripts/setup_frida_gadget.sh
-
-# Copy Frida config
-cp scripts/frida/FridaGadget.config "$GAME_DIR/red4ext/"
-cp scripts/frida/red4ext_hooks.js "$GAME_DIR/red4ext/"
 ```
 
 ### Installer Options
@@ -169,7 +162,6 @@ cp scripts/frida/red4ext_hooks.js "$GAME_DIR/red4ext/"
 Options:
   --game-dir PATH    Specify game location
   --build            Build from source first
-  --skip-frida       Don't install Frida Gadget
 ```
 
 ---
@@ -187,9 +179,6 @@ Installed to game:
 Cyberpunk 2077/
 ├── red4ext/
 │   ├── RED4ext.dylib
-│   ├── FridaGadget.dylib
-│   ├── FridaGadget.config
-│   ├── red4ext_hooks.js
 │   ├── bin/x64/
 │   │   └── cyberpunk2077_addresses.json
 │   ├── plugins/
@@ -233,7 +222,6 @@ sudo xcodebuild -license accept
 ```bash
 # Re-sign the library
 codesign -s - build/libs/RED4ext.dylib
-codesign -s - "$GAME_DIR/red4ext/FridaGadget.dylib"
 ```
 
 ### "No such file: Cyberpunk 2077"
@@ -241,19 +229,6 @@ codesign -s - "$GAME_DIR/red4ext/FridaGadget.dylib"
 ```bash
 # Specify game path manually
 ./scripts/macos_install.sh --game-dir "/path/to/Cyberpunk 2077"
-```
-
-### Frida download fails
-
-```bash
-# Install xz if missing
-brew install xz
-
-# Manual Frida download
-curl -L -o /tmp/frida.xz "https://github.com/frida/frida/releases/download/17.5.2/frida-gadget-17.5.2-macos-universal.dylib.xz"
-xz -d /tmp/frida.xz
-mv /tmp/frida "$GAME_DIR/red4ext/FridaGadget.dylib"
-codesign -s - "$GAME_DIR/red4ext/FridaGadget.dylib"
 ```
 
 ### Clean rebuild
@@ -312,6 +287,5 @@ cp cyberpunk2077_addresses.json "$GAME_DIR/red4ext/bin/x64/"
 ## See Also
 
 - [README.md](README.md) — Overview and quick start
-- [docs/MACOS_PORT.md](docs/MACOS_PORT.md) — Port technical details
-- [docs/FRIDA_INTEGRATION.md](docs/FRIDA_INTEGRATION.md) — Frida hooking
+- [docs/STATUS.md](docs/STATUS.md) — Port status
 - [scripts/README.md](scripts/README.md) — Script documentation

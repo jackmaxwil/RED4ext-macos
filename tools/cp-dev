@@ -3,7 +3,7 @@
 #
 #   tools/cp-dev <scenario> [--plugins] [cp-run options...]
 #
-# Builds RED4ext (Release, Frida Gum off), and with --plugins also ArchiveXL, TweakXL and ModMenu from
+# Builds RED4ext (Release), and with --plugins also ArchiveXL, TweakXL and ModMenu from
 # their sibling repos. Signs every dylib explicitly, installs into the game's red4ext/ directory with the
 # canonical address DB, then runs tools/cp-run <scenario>.
 set -euo pipefail

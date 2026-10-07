@@ -10,7 +10,7 @@
 #   <other>   Installs tools/autotest for one run (same CP_CORE_HOOKS / CP_PLUGINS). Pass also requires every CPAUTOTEST
 #             CHECK line on stdout to pass and a DONE event (collected into results.json).
 #
-# Launches the game binary directly with RED4ext injected (never FridaGadget), in a 1280x720 window.
+# Launches the game binary directly with RED4ext injected, in a 1280x720 window.
 # The user's UserSettings.json and red4ext/config.ini are backed up and restored on any exit.
 # Artifacts go to RED4ext/runs/<timestamp>-<scenario>/. Exit: 0 pass, 1 fail, 2 precondition error.
 set -euo pipefail

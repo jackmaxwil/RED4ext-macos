@@ -3,7 +3,7 @@
 This directory contains development notes and planning documents for the RED4ext macOS port. These are archived for reference but are **not required for users**.
 
 **For current status, see: [../STATUS.md](../STATUS.md)**  
-**For installation and usage, see: [../MACOS_PORT.md](../MACOS_PORT.md)**
+**For installation and usage, see: [../../BUILDING.md](../../BUILDING.md)**
 
 ---
 
@@ -12,7 +12,6 @@ This directory contains development notes and planning documents for the RED4ext
 ```
 porting/
 ├── README.md                       # This file
-├── HOOKING_ALTERNATIVES.md         # Analysis of hooking approaches
 ├── MACOS_PORT_COMPLETE_DEFINITION.md  # Port completion criteria
 └── archive/                        # Historical planning documents
     ├── MACOS_PORTING_PLAN.md
@@ -25,16 +24,7 @@ porting/
 
 ### Hooking Solution
 
-After extensive research, **Frida Gadget** was selected as the hooking solution for macOS:
-
-| Approach | Viability | Notes |
-|----------|-----------|-------|
-| Direct code patching | ❌ | Blocked by W^X kernel enforcement |
-| Developer Certificate | ⚠️ | Works but requires $99/year from each user |
-| Frida Gadget | ✅ | Free, works via JIT memory APIs |
-| DYLD Interpose | ⚠️ | Only for exported symbols (not sufficient) |
-
-See [HOOKING_ALTERNATIVES.md](HOOKING_ALTERNATIVES.md) for detailed analysis.
+Hooks use a native in-process arm64 engine (`src/dll/Platform/NativeHook*`). The game binary is re-signed with `allow-unsigned-executable-memory`; a target page is made writable with `mach_vm_protect(RW | VM_PROT_COPY)`, patched, restored to `R | X`, and the instruction cache is invalidated. An earlier Frida Gadget design was dropped: it only logged calls, and the C++ detours registered through it never ran.
 
 ### Architecture Changes
 
@@ -46,8 +36,7 @@ The macOS port required:
    - Unix paths instead of Windows paths
 
 2. **Hook System** (`src/dll/Platform/Hooking.cpp`)
-   - ARM64 trampoline generation
-   - Frida Gadget integration for actual interception
+   - ARM64 trampoline generation and instruction relocation (`NativeHook.cpp`)
 
 3. **SDK Compatibility** (`RED4ext.SDK/`)
    - pthread instead of Windows threading primitives

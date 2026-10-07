@@ -9,7 +9,6 @@ For the current port status and “what to validate” checklist, see [../docs/S
 | Script | Description |
 |--------|-------------|
 | `macos_install.sh` | Main installation script - detects game, copies files, signs binaries |
-| `setup_frida_gadget.sh` | Sets up Frida Gadget for function hooking |
 
 ## Code Signing Scripts
 
@@ -41,13 +40,6 @@ For the current port status and “what to validate” checklist, see [../docs/S
 | `cyberpunk2077_addresses.json` | **Essential** - Address database for SDK |
 | `manual_addresses_template.json` | Source of truth for manual addresses |
 | `cyberpunk2077_symbols.json` | Symbol mapping (can be regenerated) |
-
-## Frida Directory
-
-The `frida/` subdirectory contains:
-- `FridaGadget.dylib` - Frida runtime library
-- `FridaGadget.config` - Frida configuration
-- `red4ext_hooks.js` - Hook scripts for game functions
 
 ## Development Scripts
 
