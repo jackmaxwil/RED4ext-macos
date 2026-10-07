@@ -9,6 +9,11 @@
 #             Pass = every installed hook has hits >= 1, Running state entered, no crash report.
 #   <other>   Installs tools/autotest for one run (same CP_CORE_HOOKS / CP_PLUGINS). Pass also requires every CPAUTOTEST
 #             CHECK line on stdout to pass and a DONE event (collected into results.json).
+#   load, and scenarios whose tools/autotest/scenarios/<name>.reds defines CpRunWorldStep (e.g. modmenu-ui):
+#             load the last save, then run those steps in the world; screenshots they request go to the run folder.
+#
+# The game runs in the background (RED4EXT_BACKGROUND=1): it never takes focus, the keyboard or the mouse, and keys
+# reach it through its own event queue. Never run anything here that activates the game or moves the real cursor.
 #
 # Launches the game binary directly with RED4ext injected, in a 1280x720 window.
 # The user's UserSettings.json and red4ext/config.ini are backed up and restored on any exit.
@@ -130,7 +135,15 @@ if [[ "$SCENARIO" != boot ]]; then
     scenario_checks="$TOOLS_DIR/autotest/scenarios/$SCENARIO.reds"
     [[ -f "$scenario_checks" ]] || scenario_checks="$TOOLS_DIR/autotest/scenarios/default.reds"
     cp "$scenario_checks" "$AUTOTEST_DIR/ScenarioChecks.reds"
-    printf 'module CpAutotest\n\npublic func CpAutotestScenario() -> String = "%s";\n' "$SCENARIO" >"$AUTOTEST_DIR/Scenario.reds"
+    # In-world scenarios load the last save and then run their CpRunWorldStep steps (scenario "load": none).
+    IN_WORLD=false
+    { [[ "$SCENARIO" == load ]] || grep -q "func CpRunWorldStep" "$scenario_checks"; } && IN_WORLD=true
+    {
+        printf 'module CpAutotest\n\npublic func CpAutotestScenario() -> String = "%s";\n' "$SCENARIO"
+        printf 'public func CpAutotestInWorld() -> Bool = %s;\n' "$IN_WORLD"
+        grep -q "func CpRunWorldStep" "$scenario_checks" ||
+            printf 'public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float = -1.0;\n'
+    } >"$AUTOTEST_DIR/Scenario.reds"
     # Optional TweakXL input for the scenario; removed again on exit.
     if [[ -f "$TOOLS_DIR/autotest/scenarios/$SCENARIO.yaml" ]]; then
         mkdir -p "$GAME_DIR/r6/tweaks"
@@ -172,9 +185,10 @@ START=$(date +%s)
 touch "$RUN_DIR/.start"
 say "launching ($SCENARIO, timeout ${TIMEOUT}s, core_hooks=[${CORE_HOOKS}], plugins=[${CP_PLUGINS:-}])"
 # The start screen is where the game loads the player profile; with -skipStartScreen the menu shows no saves. Scenarios
-# that load a save (CP_PRESS_START=1) keep the start screen and press Space on it from the watch loop.
+# that load a save (in-world scenarios, or CP_PRESS_START=1) keep the start screen and press Space on it from the
+# watch loop.
 START_ARGS=-skipStartScreen
-[[ "${CP_PRESS_START:-0}" == 1 ]] && START_ARGS=""
+[[ "${CP_PRESS_START:-0}" == 1 || "${IN_WORLD:-false}" == true ]] && START_ARGS=""
 # Started outside Steam, the game's SteamAPI_Init has no app ID, fails, and the game then shows no saves. Pass the ID
 # Steam itself sets, but only when Steam is already running: tooling never starts Steam (that pops its login window).
 STEAM_APP_ID=""
@@ -183,65 +197,63 @@ pgrep -q steam_osx && STEAM_APP_ID=1091500
     [[ -z "$STEAM_APP_ID" ]] || export SteamAppId=$STEAM_APP_ID SteamGameId=$STEAM_APP_ID
     # rttidump: RED4ext writes logs/rtti_layout_macos.json when Running is entered (main menu checks then exit).
     [[ "$SCENARIO" != rttidump ]] || export RED4EXT_DUMP_RTTI=1
-    CP_AUTOTEST="$SCENARIO" DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
+    CP_AUTOTEST="$SCENARIO" RED4EXT_BACKGROUND=1 DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
     exec "$GAME_BIN" $START_ARGS >"$RUN_DIR/stdout.log" 2>&1) &
 GAME_PID=$!
 
 # --- watch ----------------------------------------------------------------------------------------
+# Nothing here takes the user's focus, keyboard or mouse: keys go to the game process only (keypress.swift), the
+# game runs with RED4EXT_BACKGROUND=1 (no activation, no cursor capture), and screenshots read its window in place.
 shot() { # screenshot of the game window, if it has one
     local id
     id=$(swift "$TOOLS_DIR/window-id.swift" "$GAME_PID" 2>/dev/null || true)
     [[ -n "$id" ]] && screencapture -x -o -l "$id" "$RUN_DIR/$1.png" 2>/dev/null || true
 }
-press_key() { # <macOS key code>: bring the game window to the front, then press the key
-    osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $GAME_PID) to true" \
-        -e "delay 1" -e "tell application \"System Events\" to key code $1" >>"$RUN_DIR/keys.log" 2>&1 || true
+press_key() { # <macOS key code>
+    swift "$TOOLS_DIR/keypress.swift" "$GAME_PID" "$1" >>"$RUN_DIR/keys.log" 2>&1 || true
 }
+in_world() { awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/WORLD_READY/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log" 2>/dev/null; }
 OUTCOME=timeout
 SHOT_AT=$((START + 60))
 START_PRESSES=0
 NEXT_START_PRESS=$START
+SHOTS_TAKEN=0
+FRONT_REPORTED=0
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
-    if [[ -f "$LOGS_DIR/autotest.log" ]] &&
-        awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/WORLD_READY/{f=1} /"event":"DONE"/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log"; then
+    # The in-game driver asks for screenshots with {"event":"SHOT","name":...} and waits a few seconds after each.
+    if [[ -f "$LOGS_DIR/autotest.log" ]]; then
+        shots=$(grep -o '"event":"SHOT","name":"[^"]*"' "$LOGS_DIR/autotest.log" | sed 's/.*"name":"//; s/"$//' || true)
+        n=0
+        for s in $shots; do
+            n=$((n + 1))
+            if [[ $n -gt $SHOTS_TAKEN ]]; then shot "$n-$s"; SHOTS_TAKEN=$n; fi
+        done
+    fi
+    if [[ $FRONT_REPORTED -eq 0 ]] && lsappinfo info -only pid "$(lsappinfo front)" 2>/dev/null | grep -q "=$GAME_PID\$"; then
+        say "WARNING: the game became the frontmost app ($((now - START)) s in)"; FRONT_REPORTED=1
+    fi
+    if [[ -f "$LOGS_DIR/autotest.log" ]] && grep -q '"event":"DONE"' "$LOGS_DIR/autotest.log"; then
         OUTCOME=results
-        # CP_WORLD_HOLD=N keeps the game running N more seconds (e.g. so the in-world HUD is built), with a screenshot
-        # before and after; CP_KEYCODE=<macOS virtual key code> presses that key in the game window in between
-        # (needs Accessibility permission for the terminal).
+        # CP_WORLD_HOLD=N keeps the game running N more seconds, with a screenshot before and after;
+        # CP_KEYCODE=<macOS virtual key code> presses that key in between.
         if [[ -n "${CP_WORLD_HOLD:-}" ]]; then
             sleep "$CP_WORLD_HOLD"
-            if [[ -n "${CP_KEYCODE:-}" ]]; then
-                # Close the pause menu first if focus loss opened it (last autotest event is PAUSE_MENU).
-                if tail -1 "$LOGS_DIR/autotest.log" | grep -q PAUSE_MENU; then press_key 53; sleep 2; fi
-                shot hold-before
-                press_key "$CP_KEYCODE"
-                sleep 3; shot hold-after
-                # CP_CLICKS="fx,fy ... key:N ..." then clicks those points (fractions of the window, as in the
-                # screenshot) or presses key code N, with a screenshot after each step.
-                n=0
-                for c in ${CP_CLICKS:-}; do
-                    n=$((n + 1))
-                    if [[ $c == key:* ]]; then press_key "${c#key:}"; else
-                        swift "$TOOLS_DIR/click.swift" "$GAME_PID" "${c%,*}" "${c#*,}" >>"$RUN_DIR/keys.log" 2>&1 || true
-                    fi
-                    sleep 2; shot "click-$n"
-                done
-            fi
+            shot hold-before
+            if [[ -n "${CP_KEYCODE:-}" ]]; then press_key "$CP_KEYCODE"; sleep 3; shot hold-after; fi
         else
-            sleep 5
+            sleep 2
         fi
         break
     fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
     # The boot loading screen, the start screen and the load screen after a save all wait on "PRESS ... TO CONTINUE".
-    # Press Space every 5 s from 8 s in until the player is in the world (WORLD_READY; then Space would jump).
-    if [[ -z "$START_ARGS" && $START_PRESSES -lt 40 && $now -ge $NEXT_START_PRESS && $((now - START)) -ge 8 ]] &&
-        ! awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/WORLD_READY/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log" 2>/dev/null; then
+    # Press Space every 5 s from 8 s in until the player is in the world (then Space would jump).
+    if [[ -z "$START_ARGS" && $START_PRESSES -lt 40 && $now -ge $NEXT_START_PRESS && $((now - START)) -ge 8 ]] && ! in_world; then
         press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 5))
     fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
-    sleep 2
+    sleep 1
 done
 if kill -0 "$GAME_PID" 2>/dev/null; then
     shot final
@@ -281,7 +293,7 @@ if events:
     loads = [i for i, e in enumerate(events) if e.get("event") == "LOAD_LAST_CHECKPOINT"]
     if loads:
         events = events[loads[0]:]
-        done = any(e.get("event") == "WORLD_READY" for e in events)
+        done = any(e.get("event") == "WORLD_READY" for e in events) and any(e.get("event") == "DONE" for e in events)
     else:
         done = any(e.get("event") == "DONE" for e in events)
     checks = [e for e in events if e.get("event") == "CHECK"]

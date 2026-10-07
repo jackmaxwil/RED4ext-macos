@@ -54,5 +54,6 @@ target_link_libraries(RED4ext.Dll
 
 if(APPLE)
   find_library(CORE_FOUNDATION CoreFoundation)
-  target_link_libraries(RED4ext.Dll PUBLIC ${CORE_FOUNDATION})
+  find_library(CORE_GRAPHICS CoreGraphics)
+  target_link_libraries(RED4ext.Dll PUBLIC ${CORE_FOUNDATION} ${CORE_GRAPHICS} objc)
 endif()

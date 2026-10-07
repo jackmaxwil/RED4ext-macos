@@ -5,6 +5,8 @@
 
 #ifdef RED4EXT_PLATFORM_MACOS
 
+void EnableBackgroundModeIfRequested(); // Platform/Background.cpp
+
 __attribute__((constructor))
 static void RED4extInit()
 {
@@ -15,6 +17,8 @@ static void RED4extInit()
         {
             return;
         }
+
+        EnableBackgroundModeIfRequested();
 
         // Construct only: App::Startup() (systems and plugins) runs from the hook on the game's main(), once the
         // game's static initializers have created its memory pools and singletons.

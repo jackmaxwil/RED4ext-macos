@@ -16,7 +16,7 @@ public func CpCheck(name: String, pass: Bool, detail: String) -> Void {
 protected cb func OnInitialize() -> Bool {
     let result = wrappedMethod();
     CpReport("{\"event\":\"MAIN_MENU\",\"scenario\":\"" + CpAutotestScenario() + "\"}");
-    if Equals(CpAutotestScenario(), "load") {
+    if CpAutotestInWorld() {
         // Loading waits for OnSavesForLoadReady: right after the start screen the save list is not known yet, and a
         // load requested now does nothing.
     } else {
@@ -63,7 +63,7 @@ private let cpLoadIssued: Bool;
 @wrapMethod(SingleplayerMenuGameController)
 protected cb func OnSavesForLoadReady(saves: array<String>) -> Bool {
     let result = wrappedMethod(saves);
-    if Equals(CpAutotestScenario(), "load") && !this.cpLoadIssued && ArraySize(saves) > 0 {
+    if CpAutotestInWorld() && !this.cpLoadIssued && ArraySize(saves) > 0 {
         this.cpLoadIssued = true;
         CpReport("{\"event\":\"LOAD_LAST_CHECKPOINT\",\"saves\":" + ToString(ArraySize(saves)) + "}");
         this.GetSystemRequestsHandler().LoadLastCheckpoint(false);
@@ -71,10 +71,70 @@ protected cb func OnSavesForLoadReady(saves: array<String>) -> Bool {
     return result;
 }
 
-// The loading screen has ended and the player is in the world (the main-menu scene's puppet never gets this).
+@addField(PlayerPuppet)
+private let cpStepsStarted: Bool;
+
+@addField(PlayerPuppet)
+public let cpHud: wref<inkGameController>;
+
+// A HUD controller of the player's world, to ask whether that world is the start screen's scene (pre-game).
+@wrapMethod(PopupsManager)
+protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    let result = wrappedMethod(playerPuppet);
+    let player = playerPuppet as PlayerPuppet;
+    if IsDefined(player) {
+        player.cpHud = this;
+    }
+    return result;
+}
+
+// The loading screen has ended and the player is in the world. In-world scenarios then run their steps and report
+// DONE. The start screen's scene puppet gets this too; its steps stop at step 0 (pre-game check).
 @wrapMethod(PlayerPuppet)
 protected cb func OnMakePlayerVisibleAfterSpawn(evt: ref<EndGracePeriodAfterSpawn>) -> Bool {
     let result = wrappedMethod(evt);
     CpReport("{\"event\":\"WORLD_READY\"}");
+    if CpAutotestInWorld() && !this.cpStepsStarted {
+        this.cpStepsStarted = true;
+        // Let the HUD finish building before the first step.
+        CpScheduleStep(this, 0, 5.0);
+    }
     return result;
+}
+
+// Steps run one after another, a delay apart: CpRunWorldStep(player, n) does step n and returns the delay before step
+// n + 1, or a negative value when the scenario is finished. A step that wants a screenshot reports CpShot(name) and
+// returns a delay of a few seconds, which gives cp-run time to take it.
+public class CpStepCallback extends DelayCallback {
+    public let player: wref<PlayerPuppet>;
+    public let step: Int32;
+
+    public func Call() -> Void {
+        if !IsDefined(this.player) {
+            return;
+        }
+        if this.step == 0 {
+            let hud = this.player.cpHud;
+            if !IsDefined(hud) || hud.GetSystemRequestsHandler().IsPreGame() {
+                return;
+            }
+        }
+        let next = CpRunWorldStep(this.player, this.step);
+        if next < 0.0 {
+            CpReport("{\"event\":\"DONE\"}");
+        } else {
+            CpScheduleStep(this.player, this.step + 1, next);
+        }
+    }
+}
+
+public func CpScheduleStep(player: ref<PlayerPuppet>, step: Int32, delay: Float) -> Void {
+    let callback = new CpStepCallback();
+    callback.player = player;
+    callback.step = step;
+    GameInstance.GetDelaySystem(player.GetGame()).DelayCallback(callback, delay, false);
+}
+
+public func CpShot(name: String) -> Void {
+    CpReport("{\"event\":\"SHOT\",\"name\":\"" + name + "\"}");
 }
