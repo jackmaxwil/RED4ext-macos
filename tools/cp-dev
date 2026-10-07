@@ -8,10 +8,10 @@
 # canonical address DB, then runs tools/cp-run <scenario>.
 set -euo pipefail
 
-SCENARIO=${1:?usage: cp-dev <scenario> [--plugins] [cp-run options...]}
+SCENARIO=${1:?usage: cp-dev <scenario> [--plugins NAME,...] [cp-run options...]}
 shift
-PLUGINS=0
-if [[ "${1:-}" == --plugins ]]; then PLUGINS=1; shift; fi
+PLUGINS=""
+if [[ "${1:-}" == --plugins ]]; then PLUGINS=${2:?--plugins needs a comma-separated list}; shift 2; fi
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$TOOLS_DIR/.." && pwd)"
@@ -33,16 +33,21 @@ install -m 755 "$BUILD/libs/RED4ext.dylib" "$R4E_DIR/RED4ext.dylib"
 cp "$ROOT/deps/red4ext.sdk/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.json"
 rm -f "$R4E_DIR/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.loader.json"
 
-if [[ $PLUGINS -eq 1 ]]; then
-    for p in "ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib" "TweakXL:cp2077-tweak-xl:TweakXL.dylib" \
-        "ModMenu:cp2077-modmenu:libModMenu.dylib"; do
-        IFS=: read -r name repo lib <<<"$p"
-        echo "[cp-dev] building $name"
-        build "$WS/$repo" "$WS/$repo/build-dev"
-        mkdir -p "$R4E_DIR/plugins/$name"
-        install -m 755 "$(find "$WS/$repo/build-dev" -maxdepth 2 -name "$lib" | head -1)" "$R4E_DIR/plugins/$name/$name.dylib"
-        "$ROOT/scripts/codesign_macos.sh" dylib "$R4E_DIR/plugins/$name/$name.dylib"
-    done
-fi
+# name:repo:built dylib:script dir installed into r6/scripts/<name> (or -)
+PLUGIN_TABLE="ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib:- TweakXL:cp2077-tweak-xl:TweakXL.dylib:- ModMenu:cp2077-modmenu:libModMenu.dylib:scripts/Scripts/ModMenu"
+for entry in $PLUGIN_TABLE; do
+    IFS=: read -r name repo lib scripts <<<"$entry"
+    [[ ",$PLUGINS," == *",$name,"* ]] || continue
+    echo "[cp-dev] building $name"
+    build "$WS/$repo" "$WS/$repo/build-dev"
+    mkdir -p "$R4E_DIR/plugins/$name"
+    install -m 755 "$(find "$WS/$repo/build-dev" -maxdepth 2 -name "$lib" | head -1)" "$R4E_DIR/plugins/$name/$name.dylib"
+    "$ROOT/scripts/codesign_macos.sh" dylib "$R4E_DIR/plugins/$name/$name.dylib"
+    if [[ "$scripts" != - ]]; then
+        rm -rf "$GAME_DIR/r6/scripts/$name"
+        cp -R "$WS/$repo/$scripts" "$GAME_DIR/r6/scripts/$name"
+    fi
+done
+export CP_PLUGINS="${CP_PLUGINS:-$PLUGINS}"
 
 exec "$TOOLS_DIR/cp-run" "$SCENARIO" "$@"

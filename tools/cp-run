@@ -124,12 +124,21 @@ EOF
 if [[ "$SCENARIO" != boot ]]; then
     mkdir -p "$AUTOTEST_DIR"
     cp "$TOOLS_DIR/autotest/"*.reds "$AUTOTEST_DIR/"
+    scenario_checks="$TOOLS_DIR/autotest/scenarios/$SCENARIO.reds"
+    [[ -f "$scenario_checks" ]] || scenario_checks="$TOOLS_DIR/autotest/scenarios/default.reds"
+    cp "$scenario_checks" "$AUTOTEST_DIR/ScenarioChecks.reds"
     printf 'module CpAutotest\n\npublic func CpAutotestScenario() -> String = "%s";\n' "$SCENARIO" >"$AUTOTEST_DIR/Scenario.reds"
 fi
 
 # --- launch ---------------------------------------------------------------------------------------
 rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.log"
 [[ -x "$GAME_DIR/engine/tools/scc" ]] && "$GAME_DIR/engine/tools/scc" -compile "$GAME_DIR/r6/scripts" >"$RUN_DIR/scc.log" 2>&1 || true
+# Never launch into the game's "REDscript compilation has failed" dialog: fail the run with the compiler errors.
+if grep -q "Compilation failed" "$RUN_DIR/scc.log" 2>/dev/null; then
+    grep -A3 "^\[ERROR" "$RUN_DIR/scc.log" | head -40
+    say "FAIL $SCENARIO: redscript compilation failed (see $RUN_DIR/scc.log)"
+    exit 1
+fi
 [[ -x "$GAME_DIR/engine/tools/inputloader.pl" ]] && "$GAME_DIR/engine/tools/inputloader.pl" >"$RUN_DIR/inputloader.log" 2>&1 || true
 
 START=$(date +%s)

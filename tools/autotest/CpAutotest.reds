@@ -12,11 +12,6 @@ public func CpCheck(name: String, pass: Bool, detail: String) -> Void {
     CpReport("{\"event\":\"CHECK\",\"name\":\"" + name + "\",\"pass\":" + ToString(pass) + ",\"detail\":\"" + detail + "\"}");
 }
 
-// Per-scenario checks that run at the main menu. Phase 3 adds tweakxl / archivexl / modmenu cases.
-public func CpRunMenuChecks(scenario: String) -> Void {
-    CpCheck("menu_reached", true, scenario);
-}
-
 @wrapMethod(SingleplayerMenuGameController)
 protected cb func OnInitialize() -> Bool {
     let result = wrappedMethod();
