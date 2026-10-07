@@ -157,6 +157,9 @@ void EnableBackgroundModeIfRequested()
     // Keep that focus: the user clicking the game window and then away must not take it back.
     Replace("GameWindowController", "windowDidResignKey:", reinterpret_cast<void*>(&IgnoreNotification));
     Replace("GameWindowDelegate", "windowDidResignKey:", reinterpret_cast<void*>(&IgnoreNotification));
+    // Same for the app losing focus (e.g. a click into the window and back out): the game's handler tells the engine
+    // focus was lost, after which the in-game test steps stopped running.
+    Replace("GameApplicationDelegate", "appDidLoseFocus:", reinterpret_cast<void*>(&IgnoreNotification));
     g_sendEvent = reinterpret_cast<SendEventFn>(
         Replace("NSApplication", "sendEvent:", reinterpret_cast<void*>(&SendEventToGameView)));
 }

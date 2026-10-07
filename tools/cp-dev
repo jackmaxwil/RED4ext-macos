@@ -68,8 +68,10 @@ for entry in $PLUGIN_TABLE; do
         cp -R "$WS/$repo/$data" "$R4E_DIR/plugins/$name/Data"
     fi
     # Bundle (ArchiveXL): the release puts the .xl resources and the packed .archive files flat in plugins/<name>/Bundle.
-    # Sources are '+'-separated; a missing one (e.g. the WolvenKit-packed archive) is skipped.
+    # Sources are '+'-separated; a missing one is skipped.
     if [[ "${bundle:--}" != - ]]; then
+        # ArchiveXL's packed archive comes from upstream's release (pinned checksum); fetched once.
+        [[ -x "$WS/$repo/tools/fetch-bundle-archive.sh" ]] && "$WS/$repo/tools/fetch-bundle-archive.sh" >/dev/null
         rm -rf "$R4E_DIR/plugins/$name/Bundle"
         mkdir -p "$R4E_DIR/plugins/$name/Bundle"
         IFS=+ read -r -a bundle_dirs <<<"$bundle"

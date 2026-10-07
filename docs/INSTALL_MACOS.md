@@ -11,7 +11,7 @@ This release is for **Cyberpunk 2077 2.3.1 (patch 2.31) on Apple silicon, Steam*
 | `red4ext/bin/red4ext_plugin_check` | Used by the launcher. It compiles a plugin's scripts only if RED4ext will load that plugin. |
 | `red4ext/plugins/TweakXL` | TweakXL, which loads TweakDB tweaks from `r6/tweaks/*.yaml`. |
 | `red4ext/plugins/ModMenu` | ModMenu. Press ` (the key left of 1) or F10 in game. |
-| `red4ext/plugins/ArchiveXL` | ArchiveXL, which loads `.xl` resource extensions from mods. The packed `ArchiveXL.archive` (built with WolvenKit) is not included yet, so its built-in character-customization fixes log "not ready" errors. Hot reload is disabled on macOS. |
+| `red4ext/plugins/ArchiveXL` | ArchiveXL, which loads mod archives from `archive/pc/mod` and their `.xl` resource extensions. Hot reload is disabled on macOS. |
 | `r6/input/modmenu.xml`, `r6/input/tweakxl.xml` | Key bindings: ModMenu (`` ` ``) and TweakXL hot reload (`\`). |
 | `launch_red4ext.sh` | The launcher. |
 | `red4ext/macos/scripts/install_macos.sh` | One-time setup that re-signs the game binary. |

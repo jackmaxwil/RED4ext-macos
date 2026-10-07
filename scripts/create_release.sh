@@ -64,6 +64,8 @@ mkdir -p "$R4E/plugins/ArchiveXL/Bundle"
 install -m 755 "$ARCHIVEXL" "$R4E/plugins/ArchiveXL/ArchiveXL.dylib"
 cp -R "$WS/cp2077-archive-xl-macos/scripts" "$R4E/plugins/ArchiveXL/Scripts"
 cp -R "$WS/cp2077-archive-xl-macos/bundle/source/resources/." "$R4E/plugins/ArchiveXL/Bundle/"
+"$WS/cp2077-archive-xl-macos/tools/fetch-bundle-archive.sh"
+cp "$WS/cp2077-archive-xl-macos/bundle/packed/archive/pc/mod/ArchiveXL.archive" "$R4E/plugins/ArchiveXL/Bundle/"
 
 install -m 755 "$MODMENU" "$R4E/plugins/ModMenu/ModMenu.dylib"
 cp -R "$WS/cp2077-modmenu/scripts/Scripts/ModMenu" "$R4E/plugins/ModMenu/Scripts"
