@@ -17,7 +17,11 @@ public:
 
         bool hasConsole = false;
         bool waitForDebugger = false;
+#ifdef RED4EXT_PLATFORM_MACOS
+        bool strictVersionCheck = true;
+#else
         bool strictVersionCheck = false;
+#endif
     };
 
     struct LoggingConfig
@@ -49,7 +53,11 @@ public:
 
         void LoadV0(const toml::value& aConfig);
 
+#ifdef RED4EXT_PLATFORM_MACOS
+        Backend backend = Backend::NativeInline;
+#else
         Backend backend = Backend::FridaGadget;
+#endif
     };
 
     Config(const Paths& aPaths);

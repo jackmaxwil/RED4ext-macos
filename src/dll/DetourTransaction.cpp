@@ -231,47 +231,12 @@ void DetourTransaction::QueueThreadsForUpdate()
     Log::trace("Queueing threads for detour update...");
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    // Only needed for native inline patching.
-    if (DetourGetBackend() != 1)
-    {
-        m_threadArray = nullptr;
-        m_threadCount = 0;
-        return;
-    }
-
-    kern_return_t kr = task_threads(mach_task_self(), &m_threadArray, &m_threadCount);
-    if (kr != KERN_SUCCESS)
-    {
-        Log::warn("Could not retrieve task threads. Error code: {}", kr);
-        m_threadArray = nullptr;
-        m_threadCount = 0;
-        return;
-    }
-
-    thread_t selfThread = mach_thread_self();
-    for (mach_msg_type_number_t i = 0; i < m_threadCount; i++)
-    {
-        if (m_threadArray[i] != selfThread)
-        {
-            if (thread_suspend(m_threadArray[i]) == KERN_SUCCESS)
-            {
-                m_threads.push_back(m_threadArray[i]);
-            }
-            else
-            {
-                Log::warn("Could not suspend thread {}.", m_threadArray[i]);
-                // Deallocate thread port we couldn't suspend
-                mach_port_deallocate(mach_task_self(), m_threadArray[i]);
-            }
-        }
-        else
-        {
-            // Don't store self thread, but also don't deallocate it yet
-        }
-    }
-    mach_port_deallocate(mach_task_self(), selfThread);
-
-    Log::trace("{} thread(s) queued for detour update (excl. current thread)", m_threads.size());
+    // Threads are suspended inside the native commit, after islands and
+    // trampolines are allocated. Suspending here would run malloc and logging
+    // while other threads are frozen.
+    m_threadArray = nullptr;
+    m_threadCount = 0;
+    return;
 #else
     wil::unique_tool_help_snapshot snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0));
     if (!snapshot)

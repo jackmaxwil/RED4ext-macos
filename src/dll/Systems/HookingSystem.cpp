@@ -1,8 +1,11 @@
 #include "stdafx.hpp"
 #include "HookingSystem.hpp"
 #include "DetourTransaction.hpp"
+#include "Utils.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
+#include "Platform/NativeHook.hpp"
+#include <dlfcn.h>
 #include <fishhook.h>
 #endif
 
@@ -86,6 +89,25 @@ bool HookingSystem::Attach(std::shared_ptr<PluginBase> aPlugin, void* aTarget, v
 
     DetourTransaction transaction;
     Item item(aTarget, aDetour, aOriginal);
+
+#ifdef RED4EXT_PLATFORM_MACOS
+    const auto owner = Utils::Narrow(aPlugin->GetName());
+    std::string symbol = "unknown";
+    Dl_info info{};
+    if (dladdr(aDetour, &info) != 0 && info.dli_sname != nullptr && info.dli_sname[0] != '\0')
+    {
+        symbol = info.dli_sname;
+    }
+    else
+    {
+        char address[32];
+        std::snprintf(address, sizeof(address), "%p", aDetour);
+        symbol = address;
+    }
+
+    const auto hookName = owner + ":" + symbol;
+    NativeHook::SetIdentity(aTarget, hookName.c_str(), owner.c_str());
+#endif
 
     auto result = item.hook.Attach();
     if (result != NO_ERROR)

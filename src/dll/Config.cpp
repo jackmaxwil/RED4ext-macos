@@ -148,6 +148,20 @@ void Config::LoadV0(const toml::value& aConfig)
     m_logging.LoadV0(aConfig);
     m_plugins.LoadV0(aConfig);
     m_hooking.LoadV0(aConfig);
+
+#ifdef RED4EXT_PLATFORM_MACOS
+    bool strictSpecified = false;
+    if (aConfig.contains("dev"))
+    {
+        const auto& dev = toml::find(aConfig, "dev");
+        strictSpecified = dev.contains("strict_version_check");
+    }
+
+    if (!strictSpecified)
+    {
+        m_dev.strictVersionCheck = m_hooking.backend == HookingConfig::Backend::NativeInline;
+    }
+#endif
 }
 
 void Config::DevConfig::LoadV0(const toml::value& aConfig)
@@ -229,6 +243,18 @@ void Config::HookingConfig::LoadV0(const toml::value& aConfig)
     else if (backendStr == "frida_gum")
     {
         backend = Backend::FridaGum;
+    }
+    else if (backendStr == "frida_gadget")
+    {
+        backend = Backend::FridaGadget;
+    }
+    else if (backendStr.empty())
+    {
+#ifdef RED4EXT_PLATFORM_MACOS
+        backend = Backend::NativeInline;
+#else
+        backend = Backend::FridaGadget;
+#endif
     }
     else
     {

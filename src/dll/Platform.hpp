@@ -17,7 +17,6 @@ namespace Platform
     constexpr uint32_t Memory_ReadWrite = PROT_READ | PROT_WRITE;
     constexpr uint32_t Memory_Execute = PROT_EXEC;
     constexpr uint32_t Memory_ExecuteRead = PROT_READ | PROT_EXEC;
-    constexpr uint32_t Memory_ExecuteReadWrite = PROT_READ | PROT_WRITE | PROT_EXEC;
 #else
     using Handle = HMODULE;
     

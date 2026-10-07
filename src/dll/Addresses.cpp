@@ -156,6 +156,23 @@ const std::string& Addresses::GetDatabaseGameVersion() const
     return m_dbGameVersion;
 }
 
+const std::string& Addresses::GetDatabaseUuid() const
+{
+    return m_dbUuid;
+}
+
+const std::string& Addresses::SymbolForHash(std::uint32_t aHash) const
+{
+    static const std::string empty;
+    const auto it = m_hashToSymbol.find(aHash);
+    if (it == m_hashToSymbol.end())
+    {
+        return empty;
+    }
+
+    return it->second;
+}
+
 void Addresses::LoadSymbols(const std::filesystem::path& aSymbolsPath)
 {
     // Map RED4ext hashes to macOS mangled symbols
@@ -258,6 +275,22 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
     simdjson::ondemand::document document = parser.iterate(json);
 
     // Optional metadata used for runtime compatibility checks.
+#ifdef RED4EXT_PLATFORM_MACOS
+    document.rewind();
+    {
+        std::string_view uuid{};
+        auto uuidErr = document["uuid"].get_string().get(uuid);
+        if (!uuidErr)
+        {
+            m_dbUuid.assign(uuid.data(), uuid.size());
+        }
+        else
+        {
+            m_dbUuid.clear();
+        }
+    }
+    document.rewind();
+#endif
     {
         std::string_view gameVersion{};
         auto versionErr = document["game_version"].get_string().get(gameVersion);

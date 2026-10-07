@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Addresses.hpp"
+#ifdef RED4EXT_PLATFORM_MACOS
+#include "Platform/NativeHook.hpp"
+#include <cstdio>
+#endif
 
 template<typename T>
 class Hook
@@ -49,6 +53,31 @@ public:
         }
 
 #ifdef RED4EXT_PLATFORM_MACOS
+        if (m_hash != 0)
+        {
+            const char* friendly = NativeHook::CoreHookName(m_hash);
+            std::string symbol;
+            if (Addresses::Instance() != nullptr)
+            {
+                symbol = Addresses::Instance()->SymbolForHash(m_hash);
+            }
+
+            char hashName[32];
+            const char* name = friendly;
+            if (name == nullptr && !symbol.empty())
+            {
+                name = symbol.c_str();
+            }
+
+            if (name == nullptr)
+            {
+                std::snprintf(hashName, sizeof(hashName), "hash:%08x", m_hash);
+                name = hashName;
+            }
+
+            NativeHook::SetIdentity(reinterpret_cast<void*>(m_address), name, "RED4ext");
+        }
+
         auto result = DetourAttach(reinterpret_cast<void**>(&m_address), reinterpret_cast<void*>(m_detour));
 #else
         auto result = DetourAttach(&m_address, m_detour);

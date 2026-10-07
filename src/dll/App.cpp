@@ -8,9 +8,7 @@
 #include "Version.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
-#include <libkern/OSCacheControl.h>
-#include <cerrno>
-#include "Detail/AddressHashes.hpp"
+#include "Platform/NativeHook.hpp"
 #endif
 
 #include "Hooks/AssertionFailed.hpp"
@@ -30,56 +28,50 @@ namespace
 std::unique_ptr<App> g_app;
 
 #ifdef RED4EXT_PLATFORM_MACOS
-bool TestTextPatchFeasibility()
+__attribute__((noinline, optnone, aligned(16384), section("__TEXT,__nhself"))) static int NativeHookSelfTarget(int x)
 {
-    constexpr uint32_t kPatchSize = 4;
-    constexpr uint32_t kNop = 0xD503201F; // NOP
+    return x + 1;
+}
 
-    auto* addresses = Addresses::Instance();
-    if (!addresses)
+static int NativeHookSelfDetour(int)
+{
+    return 42;
+}
+
+bool RunNativeHookSelfTest()
+{
+    if (NativeHookSelfTarget(1) != 2)
     {
-        Log::error("[HookingPOC] Addresses not initialized");
+        Log::error("Native hook self-test target returned an unexpected value before patching");
         return false;
     }
 
-    auto target = reinterpret_cast<void*>(addresses->Resolve(Hashes::CGameApplication_AddState));
-    if (!target)
+    auto* targetFn = &NativeHookSelfTarget;
+    void* original = reinterpret_cast<void*>(targetFn);
+    DetourTransaction transaction;
+    if (!transaction.IsValid() ||
+        DetourAttach(&original, reinterpret_cast<void*>(&NativeHookSelfDetour)) != NO_ERROR || !transaction.Commit())
     {
-        Log::error("[HookingPOC] Could not resolve CGameApplication_AddState");
+        Log::error("Native hook self-test could not install its detour");
         return false;
     }
 
-    uint32_t original = 0;
-    std::memcpy(&original, target, sizeof(original));
+    const int hooked = NativeHookSelfTarget(1);
 
-    Log::info("[HookingPOC] Testing __TEXT patchability at CGameApplication_AddState={}, original={:#x}", target,
-              original);
-
-    uint32_t oldProt = 0;
-    if (!Platform::ProtectMemory(target, kPatchSize, Platform::Memory_ExecuteReadWrite, &oldProt))
+    DetourTransaction detach;
+    if (detach.IsValid())
     {
-        Log::error("[HookingPOC] ProtectMemory(RWX) failed: errno={} oldProt={:#x}", errno, oldProt);
+        DetourDetach(&original, reinterpret_cast<void*>(&NativeHookSelfDetour));
+        detach.Commit();
+    }
+
+    if (hooked != 42 || NativeHookSelfTarget(1) != 2)
+    {
+        Log::error("Native hook self-test detour did not run or the target was not restored");
         return false;
     }
 
-    std::memcpy(target, &kNop, sizeof(kNop));
-    sys_icache_invalidate(target, kPatchSize);
-
-    uint32_t readback = 0;
-    std::memcpy(&readback, target, sizeof(readback));
-
-    // Restore
-    std::memcpy(target, &original, sizeof(original));
-    sys_icache_invalidate(target, kPatchSize);
-    Platform::ProtectMemory(target, kPatchSize, oldProt, nullptr);
-
-    if (readback != kNop)
-    {
-        Log::error("[HookingPOC] Write verification failed: wrote={:#x} readback={:#x}", kNop, readback);
-        return false;
-    }
-
-    Log::info("[HookingPOC] __TEXT patch test succeeded (wrote NOP and restored)");
+    Log::info("Native hook engine self-test passed");
     return true;
 }
 #endif
@@ -198,7 +190,30 @@ App::App()
     Addresses::Construct(m_paths);
 
 #ifdef RED4EXT_PLATFORM_MACOS
-    if (auto* addresses = Addresses::Instance())
+    if (m_config.GetHooking().backend == Config::HookingConfig::Backend::NativeInline)
+    {
+        char imageUuid[80]{};
+        NativeHook::MainImageUuid(imageUuid, sizeof(imageUuid));
+        char imageVersion[32];
+        std::snprintf(imageVersion, sizeof(imageVersion), "%u.%u.%u", productVer.major, productVer.minor,
+                      productVer.patch);
+        const char* dbVersion = "";
+        const char* dbUuid = "";
+        if (auto* addresses = Addresses::Instance())
+        {
+            dbVersion = addresses->GetDatabaseGameVersion().c_str();
+            dbUuid = addresses->GetDatabaseUuid().c_str();
+        }
+
+        char line[640];
+        if (!NativeHook::AllowWrites(dbVersion, dbUuid, imageVersion, imageUuid, m_config.GetDev().strictVersionCheck,
+                                     line, sizeof(line)))
+        {
+            Log::error("{}", line);
+            return;
+        }
+    }
+    else if (auto* addresses = Addresses::Instance())
     {
         const auto& dbVersionStr = addresses->GetDatabaseGameVersion();
         if (!dbVersionStr.empty())
@@ -206,13 +221,12 @@ App::App()
             RED4ext::SemVer dbVersion{};
             if (ParseSemVer(dbVersionStr, dbVersion))
             {
-                const auto strictVersionCheck = m_config.GetDev().strictVersionCheck;
                 if (dbVersion.major != productVer.major || dbVersion.minor != productVer.minor ||
                     dbVersion.patch != productVer.patch)
                 {
                     Log::warn("Address DB version ({}) does not match runtime version ({}.{}.{})", dbVersionStr,
                               productVer.major, productVer.minor, productVer.patch);
-                    if (strictVersionCheck)
+                    if (m_config.GetDev().strictVersionCheck)
                     {
                         Log::error("strict_version_check=true and version mismatch detected; aborting initialization");
                         return;
@@ -244,6 +258,10 @@ void App::Construct()
 
 void App::Destruct()
 {
+#ifdef RED4EXT_PLATFORM_MACOS
+    NativeHook::StopStatsThread();
+#endif
+
     Log::info("RED4ext is terminating...");
 
     // Detaching hooks here and not in dtor, since the dtor can be called by CRT when the processes exists. We don't
@@ -357,28 +375,12 @@ bool App::AttachHooks() const
 #ifdef RED4EXT_PLATFORM_MACOS
     DetourSetBackend(static_cast<int32_t>(m_config.GetHooking().backend));
 
-    // Phase 0 gate: if native is requested, first verify we can patch __TEXT.
     if (m_config.GetHooking().backend == Config::HookingConfig::Backend::NativeInline)
     {
+        if (!RunNativeHookSelfTest())
         {
-            DetourTransaction transaction;
-            if (!transaction.IsValid())
-            {
-                return false;
-            }
-
-            const bool canPatch = TestTextPatchFeasibility();
-            transaction.Commit();
-
-            if (!canPatch)
-            {
-                Log::warn("[HookingPOC] Native inline patching appears NOT viable; falling back to Frida backend");
-                DetourSetBackend(static_cast<int32_t>(Config::HookingConfig::Backend::FridaGadget));
-            }
-            else
-            {
-                Log::info("[HookingPOC] Native inline patching appears viable; proceeding with native hooks");
-            }
+            Log::error("Native hook engine self-test failed; not installing game hooks");
+            return false;
         }
     }
 
@@ -418,11 +420,17 @@ bool App::AttachHooks() const
     else Log::warn("gsmState_SessionActive hook failed - session state hooks unavailable");
     
     Log::info("Attached {}/{} hooks successfully", successCount, totalHooks);
-    
-    // On macOS, we consider initialization successful even with partial hooks
-    // Plugin loading and basic functionality should still work
-    transaction.Commit();
-    return true;
+
+    const bool committed = transaction.Commit();
+    if (committed && m_config.GetHooking().backend == Config::HookingConfig::Backend::NativeInline)
+    {
+        char imageUuid[80]{};
+        NativeHook::MainImageUuid(imageUuid, sizeof(imageUuid));
+        const auto statsPath = m_paths.GetLogsDir() / "hookstats.json";
+        NativeHook::StartStatsThread(statsPath.string().c_str(), imageUuid);
+    }
+
+    return committed;
 #else
     DetourTransaction transaction;
     if (!transaction.IsValid())

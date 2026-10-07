@@ -16,6 +16,8 @@ public:
 
     std::uintptr_t Resolve(std::uint32_t aHash) const;
     const std::string& GetDatabaseGameVersion() const;
+    const std::string& GetDatabaseUuid() const;
+    const std::string& SymbolForHash(std::uint32_t aHash) const;
 
 private:
     Addresses(const Paths& aPaths);
@@ -30,4 +32,5 @@ private:
     std::unordered_map<std::uint32_t, std::uintptr_t> m_addresses;
     std::unordered_map<std::uint32_t, std::string> m_hashToSymbol;
     std::string m_dbGameVersion;
+    std::string m_dbUuid;
 };

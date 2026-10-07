@@ -1,4 +1,5 @@
 #include "Platform.hpp"
+#include "Platform/MainLookup.hpp"
 
 #ifdef RED4EXT_PLATFORM_MACOS
 #include <mach-o/dyld.h>
@@ -31,7 +32,7 @@ Handle GetModuleHandle(const wchar_t* aName)
 
 void* GetProcAddress(Handle aHandle, const char* aName)
 {
-    return dlsym(aHandle, aName);
+    return Red4extLookupSymbol(aHandle, aName);
 }
 
 bool ProtectMemory(void* aAddress, size_t aSize, uint32_t aNewProtection, uint32_t* aOldProtection)
@@ -68,35 +69,39 @@ bool ProtectMemory(void* aAddress, size_t aSize, uint32_t aNewProtection, uint32
         }
     }
 
-    // Try multiple approaches to make memory writable
-    
-    // Approach 1: vm_protect with VM_PROT_COPY (creates copy-on-write)
-    kern_return_t kr = vm_protect(task, alignedAddr, alignedSize, FALSE, aNewProtection | VM_PROT_COPY);
-    if (kr == KERN_SUCCESS)
+    if ((aNewProtection & PROT_WRITE) != 0 && (aNewProtection & PROT_EXEC) != 0)
     {
-        spdlog::debug("[Platform] vm_protect with VM_PROT_COPY succeeded");
-        return true;
+        spdlog::error("[Platform] Refusing an RWX protection request at {:#x}", alignedAddr);
+        return false;
     }
-    spdlog::debug("[Platform] vm_protect with VM_PROT_COPY failed: {}", kr);
-    
-    // Approach 2: Try mach_vm_protect 
-    kr = mach_vm_protect(task, alignedAddr, alignedSize, FALSE, aNewProtection);
-    if (kr == KERN_SUCCESS)
+
+    vm_prot_t prot = aNewProtection;
+    if ((aNewProtection & PROT_WRITE) != 0)
     {
-        spdlog::debug("[Platform] mach_vm_protect succeeded");
-        return true;
+        vm_region_extended_info_data_t info{};
+        mach_msg_type_number_t infoCount = VM_REGION_EXTENDED_INFO_COUNT;
+        mach_port_t objectName = MACH_PORT_NULL;
+        mach_vm_address_t regionAddr = alignedAddr;
+        mach_vm_size_t regionSize = 0;
+        const kern_return_t query = mach_vm_region(task, &regionAddr, &regionSize, VM_REGION_EXTENDED_INFO,
+                                                   reinterpret_cast<vm_region_info_t>(&info), &infoCount, &objectName);
+        const bool privatePage = query == KERN_SUCCESS && regionAddr <= alignedAddr &&
+                                 (info.share_mode == SM_PRIVATE || info.share_mode == SM_PRIVATE_ALIASED ||
+                                  info.share_mode == SM_EMPTY);
+        if (!privatePage)
+        {
+            prot |= VM_PROT_COPY;
+        }
     }
-    spdlog::debug("[Platform] mach_vm_protect failed: {}", kr);
-    
-    // Approach 3: mprotect as fallback
-    if (mprotect(reinterpret_cast<void*>(alignedAddr), alignedSize, aNewProtection) == 0)
+
+    const kern_return_t kr = mach_vm_protect(task, alignedAddr, alignedSize, FALSE, prot);
+    if (kr != KERN_SUCCESS)
     {
-        spdlog::debug("[Platform] mprotect succeeded");
-        return true;
+        spdlog::error("[Platform] mach_vm_protect failed at {:#x}: kr={}", alignedAddr, kr);
+        return false;
     }
-    
-    spdlog::error("[Platform] All protection change methods failed, errno={}", errno);
-    return false;
+
+    return true;
 }
 
 std::filesystem::path GetModuleFileName(Handle aHandle)
