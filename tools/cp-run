@@ -4,9 +4,10 @@
 #   tools/cp-run <scenario> [--timeout SECONDS] [--keep-settings]
 #
 # Scenarios:
-#   boot      RED4ext only, core hook allowlist from $CP_CORE_HOOKS (default: CGameApplication_AddState).
+#   boot      No autotest. Core hook allowlist from $CP_CORE_HOOKS (default: CGameApplication_AddState);
+#             plugins from $CP_PLUGINS (comma-separated directory names; default: none).
 #             Pass = every installed hook has hits >= 1, Running state entered, no crash report.
-#   <other>   Plugins enabled; installs tools/autotest for one run. Pass also requires every CPAUTOTEST
+#   <other>   Installs tools/autotest for one run (same CP_CORE_HOOKS / CP_PLUGINS). Pass also requires every CPAUTOTEST
 #             CHECK line on stdout to pass and a DONE event (collected into results.json).
 #
 # Launches the game binary directly with RED4ext injected (never FridaGadget), in a 1280x720 window.
@@ -49,13 +50,7 @@ die() { say "PRECONDITION: $*"; exit 2; }
 pgrep -x Cyberpunk2077 >/dev/null && die "the game is already running"
 codesign -d --entitlements - "$GAME_BIN" 2>/dev/null | grep -q allow-unsigned-executable-memory ||
     die "game binary lacks allow-unsigned-executable-memory; run: scripts/codesign_macos.sh exe \"$GAME_BIN\""
-if ! pgrep -x steam_osx >/dev/null; then
-    say "starting Steam"
-    open -ga Steam
-    for _ in $(seq 60); do pgrep -x steam_osx >/dev/null && break; sleep 2; done
-    pgrep -x steam_osx >/dev/null || die "Steam did not start"
-    sleep 15 # let the client finish logging in
-fi
+# Steam is deliberately not started: launching it (signed out) pops a login window, and the game runs without it.
 
 # --- backup + test profile ------------------------------------------------------------------------
 cp -p "$SETTINGS" "$RUN_DIR/backup/UserSettings.json"
@@ -88,12 +83,16 @@ for g in d["data"]:
 json.dump(d, open(p, "w"), indent=2)
 EOF
 
-if [[ "$SCENARIO" == boot ]]; then
-    PLUGINS_ENABLED=false
-    CORE_HOOKS=${CP_CORE_HOOKS:-CGameApplication_AddState}
-else
+CORE_HOOKS=${CP_CORE_HOOKS:-CGameApplication_AddState}
+# CP_PLUGINS: comma-separated plugin directory names to load; every other installed plugin is ignored.
+PLUGINS_ENABLED=false
+ignored_list=""
+if [[ -n "${CP_PLUGINS:-}" ]]; then
     PLUGINS_ENABLED=true
-    CORE_HOOKS=${CP_CORE_HOOKS:-}
+    for d in "$R4E_DIR"/plugins/*/; do
+        name=$(basename "$d")
+        [[ ",$CP_PLUGINS," == *",$name,"* ]] || ignored_list+="\"$name\", "
+    done
 fi
 core_list=""
 IFS=, read -ra hooks <<<"$CORE_HOOKS"
@@ -114,7 +113,7 @@ max_files = 5
 
 [plugins]
 enabled = $PLUGINS_ENABLED
-ignored = []
+ignored = [${ignored_list%, }]
 
 [hooking]
 backend = "native_inline"
@@ -129,13 +128,13 @@ if [[ "$SCENARIO" != boot ]]; then
 fi
 
 # --- launch ---------------------------------------------------------------------------------------
-rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log"
+rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.log"
 [[ -x "$GAME_DIR/engine/tools/scc" ]] && "$GAME_DIR/engine/tools/scc" -compile "$GAME_DIR/r6/scripts" >"$RUN_DIR/scc.log" 2>&1 || true
 [[ -x "$GAME_DIR/engine/tools/inputloader.pl" ]] && "$GAME_DIR/engine/tools/inputloader.pl" >"$RUN_DIR/inputloader.log" 2>&1 || true
 
 START=$(date +%s)
 touch "$RUN_DIR/.start"
-say "launching ($SCENARIO, timeout ${TIMEOUT}s, core_hooks=[${CORE_HOOKS}], plugins=$PLUGINS_ENABLED)"
+say "launching ($SCENARIO, timeout ${TIMEOUT}s, core_hooks=[${CORE_HOOKS}], plugins=[${CP_PLUGINS:-}])"
 (cd "$GAME_DIR" && CP_AUTOTEST="$SCENARIO" DYLD_INSERT_LIBRARIES="$R4E_DIR/RED4ext.dylib" \
     exec "$GAME_BIN" -skipStartScreen >"$RUN_DIR/stdout.log" 2>&1) &
 GAME_PID=$!
@@ -150,7 +149,7 @@ OUTCOME=timeout
 SHOT_AT=$((START + 60))
 while kill -0 "$GAME_PID" 2>/dev/null; do
     now=$(date +%s)
-    if grep -q 'CPAUTOTEST {"event":"DONE"}' "$RUN_DIR/stdout.log" 2>/dev/null; then OUTCOME=results; sleep 5; break; fi
+    if grep -q '"event":"DONE"' "$LOGS_DIR/autotest.log" 2>/dev/null; then OUTCOME=results; sleep 5; break; fi
     if [[ $now -ge $SHOT_AT ]]; then shot "t$((now - START))"; SHOT_AT=$((now + 60)); fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
     sleep 2
@@ -168,24 +167,26 @@ GAME_PID=""
 for _ in $(seq 15); do find "$HOME/Library/Logs/DiagnosticReports" -name "Cyberpunk2077*.ips" -newer "$RUN_DIR/.start" | grep -q . && break; [[ $EXIT_CODE -eq 0 || $EXIT_CODE -eq 143 ]] && break; sleep 1; done # ReportCrash can take a few seconds
 
 # --- collect --------------------------------------------------------------------------------------
-cp "$LOGS_DIR"/{hookstats.json,milestones.log} "$RUN_DIR/" 2>/dev/null || true
+cp "$LOGS_DIR"/{hookstats.json,milestones.log,autotest.log} "$RUN_DIR/" 2>/dev/null || true
 latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
 [[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
 find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
 find "$HOME/Library/Logs/DiagnosticReports" -name 'Cyberpunk2077*.ips' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
 
-# results.json from the autotest's "CPAUTOTEST <json>" stdout lines
+# results.json from the autotest's JSON lines (red4ext/logs/autotest.log)
 python3 - "$RUN_DIR" <<'PY'
 import json, os, sys
 run = sys.argv[1]
 events = []
-for line in open(os.path.join(run, "stdout.log"), errors="replace"):
-    i = line.find("CPAUTOTEST ")
-    if i >= 0:
-        try:
-            events.append(json.loads(line[i + len("CPAUTOTEST "):].strip()))
-        except ValueError:
-            pass
+try:
+    lines = open(os.path.join(run, "autotest.log"), errors="replace").read().splitlines()
+except OSError:
+    lines = []
+for line in lines:
+    try:
+        events.append(json.loads(line))
+    except ValueError:
+        pass
 if events:
     checks = [e for e in events if e.get("event") == "CHECK"]
     done = any(e.get("event") == "DONE" for e in events)
@@ -230,7 +231,7 @@ if scenario != "boot":
             bad = [c.get("name") for c in res.get("checks", []) if not c.get("pass")]
             fails.append(f"results.json pass=false {bad}")
     except (OSError, ValueError) as e:
-        fails.append(f"results.json missing: no CPAUTOTEST lines on stdout ({e})")
+        fails.append(f"results.json missing: autotest.log has no events ({e})")
 verdict = "PASS" if not fails else "FAIL"
 summary = {"scenario": scenario, "verdict": verdict, "outcome": outcome, "exit_code": code, "failures": fails}
 json.dump(summary, open(os.path.join(run, "verdict.json"), "w"), indent=2)

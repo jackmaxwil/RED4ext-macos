@@ -367,6 +367,26 @@ void Addresses::LoadAddresses(const std::filesystem::path& aPath)
             stream >> std::hex >> segment >> separator >> offset;
 
 #ifdef RED4EXT_PLATFORM_MACOS
+            // Fail closed: only entries the address audit marked "verified": true resolve. An unverified address
+            // can point into the middle of unrelated code or data. RED4EXT_ALLOW_UNVERIFIED_ADDRESSES=1 overrides
+            // this for reverse-engineering sessions only.
+            static const bool allowUnverified = []()
+            {
+                const char* env = std::getenv("RED4EXT_ALLOW_UNVERIFIED_ADDRESSES");
+                return env && *env == '1';
+            }();
+            bool verified = false;
+            if (auto verifiedField = entry.find_field("verified"); !verifiedField.error())
+            {
+                verifiedField.get_bool().get(verified);
+            }
+            if (!verified && !allowUnverified)
+            {
+                Log::debug("Address for hash 0x{:08X} is not verified; leaving it unresolved", hash);
+                m_addresses.emplace(static_cast<std::uint32_t>(hash), 0);
+                continue;
+            }
+
             if (offset == 0)
             {
                 // Explicitly allow zero offsets (GPU-only or unsupported on macOS)

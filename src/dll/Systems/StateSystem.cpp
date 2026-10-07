@@ -37,12 +37,40 @@ void SelfCheckPing(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, int32_t*
     }
 }
 
+// RED4ext_TestReport(line: String): appends one line to red4ext/logs/autotest.log. The unattended test driver
+// (tools/autotest) reports its results through it.
+void TestReport(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, void*, int64_t)
+{
+    RED4ext::CString line;
+    RED4ext::GetParameter(aFrame, &line);
+    aFrame->code++;
+
+    if (const auto app = App::Get(); app && app->GetPaths())
+    {
+        std::ofstream file(app->GetPaths()->GetLogsDir() / "autotest.log", std::ios::app);
+        file << line.c_str() << std::endl;
+    }
+}
+
 void RegisterSelfCheckFunctions()
 {
     auto func = RED4ext::CGlobalFunction::Create(SelfCheckFunctionName, SelfCheckFunctionName, &SelfCheckPing);
     func->flags = {.isNative = true, .isStatic = true};
     func->SetReturnType("Int32");
     RED4ext::CRTTISystem::Get()->RegisterFunction(func);
+
+    // AddParam grows a game DynArray, which needs a verified DynArray_Realloc. Check the capability before using it.
+    static RED4ext::UniversalRelocFunc<void (*)()> dynArrayRealloc(RED4ext::Detail::AddressHashes::DynArray_Realloc);
+    if (!dynArrayRealloc.IsValid())
+    {
+        Log::warn("DynArray_Realloc is not verified; RED4ext_TestReport is not registered");
+        return;
+    }
+
+    auto report = RED4ext::CGlobalFunction::Create("RED4ext_TestReport", "RED4ext_TestReport", &TestReport);
+    report->flags = {.isNative = true, .isStatic = true};
+    report->AddParam("String", "line");
+    RED4ext::CRTTISystem::Get()->RegisterFunction(report);
 }
 
 // SDK smoke checks against the live game, run once when the Running state is entered. Each writes
