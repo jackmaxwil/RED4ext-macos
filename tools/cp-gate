@@ -1,0 +1,67 @@
+#!/bin/bash
+# Offline gate for patch days and releases. It never launches the game.
+#
+#   tools/cp-gate [PLUGIN.dylib:SOURCE_DIR ...]
+#
+# Checks, in order:
+#   1. The installed game binary's UUID matches the address DB's uuid. A new game patch invalidates every verified
+#      address and the layout dump.
+#   2. The address DB's verified entries pass validate_addresses.py --verified-only.
+#   3. The layout dump is from the same binary, and each plugin's classes match it (sdk_layout_diff.py).
+#   4. Every address hash compiled into each plugin is verified (red4ext_plugin_check, the loader's own gate).
+# With no arguments it checks the TweakXL, ModMenu and ArchiveXL builds next to this repo.
+# Exit 0 only if every check passes.
+#
+# Patch-day procedure when check 1 fails:
+#   1. tools/cp-run rttidump        -> copy logs/rtti_layout_macos.json to RED4ext.SDK/data/
+#   2. Re-verify every "verified" DB entry against the new binary (RED4ext.SDK/docs/re/*.md lists the evidence),
+#      update offsets and uuid, and clear "verified" on anything not re-confirmed.
+#   3. Re-run this gate.
+set -uo pipefail
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$TOOLS_DIR/.."
+WS="$ROOT/.."
+SDK="$WS/RED4ext.SDK"
+DB="$SDK/cyberpunk2077_addresses.json"
+DUMP="$SDK/data/rtti_layout_macos.json"
+GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
+GAME_BIN="${CP2077_BINARY:-$GAME_DIR/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077}"
+CHECK="$ROOT/build-dev/bin/red4ext_plugin_check"
+
+fail=0
+step() { echo "== $*"; }
+bad() { echo "FAIL: $*"; fail=1; }
+
+normalize() { tr -d '-' | tr '[:lower:]' '[:upper:]'; }
+dbuuid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("uuid",""))' "$DB" | normalize)
+dumpuuid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("uuid",""))' "$DUMP" | normalize)
+gameuuid=$(dwarfdump --uuid "$GAME_BIN" 2>/dev/null | awk '/arm64/{print $2}' | normalize)
+
+step "game binary vs address DB"
+echo "game $gameuuid / DB $dbuuid / dump $dumpuuid"
+[[ -n "$gameuuid" && "$gameuuid" == "$dbuuid" ]] || bad "the game binary does not match the address DB (patch day: see the header of this script)"
+[[ "$dumpuuid" == "$dbuuid" ]] || bad "the layout dump is from another binary (run tools/cp-run rttidump)"
+
+step "verified address entries"
+python3 "$SDK/scripts/validate_addresses.py" --verified-only --quiet || bad "validate_addresses.py"
+
+if [[ $# -eq 0 ]]; then
+    set -- "$WS/cp2077-tweak-xl/build-dev/TweakXL.dylib:$WS/cp2077-tweak-xl/src" \
+        "$WS/cp2077-modmenu/build-dev/libModMenu.dylib:$WS/cp2077-modmenu/src" \
+        "$WS/cp2077-archive-xl-macos/build-dev/ArchiveXL.dylib:$WS/cp2077-archive-xl-macos/src"
+fi
+
+[[ -x "$CHECK" ]] || { bad "build red4ext_plugin_check first (cmake --build build-dev)"; exit 1; }
+for spec in "$@"; do
+    dylib=${spec%%:*}
+    src=${spec#*:}
+    step "$(basename "$dylib")"
+    [[ -f "$dylib" ]] || { bad "$dylib not built"; continue; }
+    "$CHECK" "$DB" "$dylib" || bad "$(basename "$dylib") uses unverified addresses"
+    python3 "$SDK/scripts/sdk_layout_diff.py" --plugin-sources "$src" | tail -1
+    python3 "$SDK/scripts/sdk_layout_diff.py" --plugin-sources "$src" >/dev/null || bad "$(basename "$dylib") uses classes whose macOS layout differs from the SDK"
+done
+
+[[ $fail -eq 0 ]] && echo "PASS" || echo "FAILED"
+exit $fail
