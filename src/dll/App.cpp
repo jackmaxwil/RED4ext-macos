@@ -227,7 +227,7 @@ void App::Destruct()
     if (transaction.IsValid())
     {
 #ifdef RED4EXT_PLATFORM_MACOS
-        auto success = Hooks::CGameApplication::Detach() && Hooks::ExecuteProcess::Detach() &&
+        auto success = Hooks::CGameApplication::Detach() && Hooks::Main::Detach() && Hooks::ExecuteProcess::Detach() &&
                        Hooks::InitScripts::Detach() && Hooks::LoadScripts::Detach() &&
                        Hooks::ValidateScripts::Detach() && Hooks::AssertionFailed::Detach() &&
                        Hooks::CollectSaveableSystems::Detach() &&
@@ -348,7 +348,11 @@ bool App::AttachHooks() const
     };
 
     int successCount = 0;
-    int totalHooks = 0;
+    int totalHooks = 1;
+
+    // Always required: plugins are loaded from the game's main(), not from the dylib constructor.
+    if (Hooks::Main::Attach()) successCount++;
+    else Log::error("main() hook failed - plugins will not be loaded");
 
     if (enabled("CGameApplication_AddState"))
     {

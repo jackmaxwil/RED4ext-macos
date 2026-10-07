@@ -16,17 +16,9 @@ static void RED4extInit()
             return;
         }
 
+        // Construct only: App::Startup() (systems and plugins) runs from the hook on the game's main(), once the
+        // game's static initializers have created its memory pools and singletons.
         App::Construct();
-        
-        // On macOS, we can't hook the entry point like on Windows,
-        // so we call Startup() directly after Construct().
-        // This is safe because we're loaded via DYLD_INSERT_LIBRARIES
-        // before the main binary starts.
-        auto app = App::Get();
-        if (app)
-        {
-            app->Startup();
-        }
     }
     catch (const std::exception& e)
     {

@@ -5,9 +5,40 @@
 #include "Hook.hpp"
 #include "stdafx.hpp"
 
+
 namespace
 {
 bool isAttached = false;
+
+#ifdef RED4EXT_PLATFORM_MACOS
+// RED4ext is loaded through DYLD_INSERT_LIBRARIES, so its constructor runs before the game's own static
+// initializers: the memory pools and singletons (RTTI system, name pool) do not exist yet. Plugins must not be
+// loaded until the game's main() has been entered, exactly as on Windows.
+// On macOS, Hashes::Main is the engine initializer that the game's main() calls first with argc/argv, before
+// the body that creates CGameApplication. main() itself sits too close to __PAGEZERO for a near-branch patch.
+void _Main(int aArgc, char** aArgv);
+Hook<decltype(&_Main)> Main_fnc(Hashes::Main, &_Main);
+
+void _Main(int aArgc, char** aArgv)
+{
+    try
+    {
+        App::Get()->Startup();
+    }
+    catch (const std::exception& e)
+    {
+        SHOW_MESSAGE_BOX_AND_EXIT_FILE_LINE("An exception occurred while RED4ext was starting up.\n\n{}",
+                                            Utils::Widen(e.what()));
+    }
+    catch (...)
+    {
+        SHOW_MESSAGE_BOX_AND_EXIT_FILE_LINE("An unknown exception occurred while RED4ext was starting up.");
+    }
+
+    // Shutdown runs from the dylib destructor.
+    Main_fnc(aArgc, aArgv);
+}
+#else
 
 int WINAPI _Main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow);
 Hook<decltype(&_Main)> Main_fnc(Hashes::Main, &_Main);
@@ -48,6 +79,7 @@ int WINAPI _Main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, i
 
     return result;
 }
+#endif
 } // namespace
 
 bool Hooks::Main::Attach()

@@ -24,6 +24,27 @@ void WriteMilestone(const char* aEvent, RED4ext::EGameStateType aStateType)
     file << ms << ' ' << aEvent << ' ' << Utils::Narrow(Utils::GetStateName(aStateType)) << '\n';
 }
 
+// Registered from the RTTI post-register callback at startup; its presence at Running proves the native function
+// registration path that plugins (ModMenu, test bridges) depend on.
+constexpr auto SelfCheckFunctionName = "RED4extSelfCheck_Ping";
+
+void SelfCheckPing(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, int32_t* aOut, int64_t)
+{
+    aFrame->code++;
+    if (aOut)
+    {
+        *aOut = 42;
+    }
+}
+
+void RegisterSelfCheckFunctions()
+{
+    auto func = RED4ext::CGlobalFunction::Create(SelfCheckFunctionName, SelfCheckFunctionName, &SelfCheckPing);
+    func->flags = {.isNative = true, .isStatic = true};
+    func->SetReturnType("Int32");
+    RED4ext::CRTTISystem::Get()->RegisterFunction(func);
+}
+
 // SDK smoke checks against the live game, run once when the Running state is entered. Each writes
 // "CHECK <name> pass|fail" to milestones.log for the test runner.
 void RunSdkSelfChecks()
@@ -66,6 +87,9 @@ void RunSdkSelfChecks()
                 std::strcmp(copy.c_str(), longStr.c_str()) == 0;
     }
     file << "CHECK cstring " << (strOk ? "pass" : "fail") << std::endl;
+
+    auto registered = hasVtable ? rtti->GetFunction(SelfCheckFunctionName) : nullptr;
+    file << "CHECK native_function_registration " << (registered ? "pass" : "fail") << std::endl;
 }
 } // namespace
 
@@ -76,6 +100,7 @@ ESystemType StateSystem::GetType()
 
 void StateSystem::Startup()
 {
+    RED4ext::CRTTISystem::Get()->AddPostRegisterCallback(&RegisterSelfCheckFunctions);
 }
 
 void StateSystem::Shutdown()
