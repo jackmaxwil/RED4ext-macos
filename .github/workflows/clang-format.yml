@@ -24,4 +24,4 @@ jobs:
           AFTER: ${{ github.sha }}
         run: |
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then BEFORE="$AFTER~1"; fi
-          .cf/bin/git-clang-format --binary .cf/bin/clang-format --style file --diff "$BEFORE" "$AFTER"
+          .cf/bin/git-clang-format --binary .cf/bin/clang-format --style file --extensions cpp,hpp,h,c,cc,mm --diff "$BEFORE" "$AFTER"
