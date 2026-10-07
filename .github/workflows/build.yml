@@ -97,3 +97,21 @@ jobs:
         with:
           name: red4ext_${{ env.RED4EXT_PRETTY_CONFIG }}_${{ env.RED4EXT_COMMIT_SHA }}_pdbs
           path: build/_packaging_pdbs/
+
+  native-hooks:
+    name: Native hooks (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -S . -B build-native-hooks -DCMAKE_BUILD_TYPE=Release -DRED4EXT_USE_FRIDA_GUM=OFF
+
+      - name: Build
+        run: cmake --build build-native-hooks -j --target native_hook_tests RED4ext.Dll
+
+      - name: Test
+        run: ctest --test-dir build-native-hooks -R '^native_hook_tests$' --output-on-failure

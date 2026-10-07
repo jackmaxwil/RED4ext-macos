@@ -2,34 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- 
-    RED4ext macOS Entitlements
-    ==========================
-    These entitlements allow Cyberpunk 2077 to run with code modification
-    capabilities required for RED4ext function hooking.
-    
-    Original CDPR entitlements (preserved):
-    - allow-dyld-environment-variables: Allows DYLD_INSERT_LIBRARIES
-    - disable-library-validation: Allows loading unsigned dylibs
-    
-    NEW entitlements for RED4ext:
-    - allow-unsigned-executable-memory: Allows modifying code pages
-    - allow-jit: Allows JIT compilation (for trampoline generation)
-    -->
-    
-    <!-- Original CDPR entitlements -->
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
-    
-    <!-- NEW: Required for RED4ext function hooking -->
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-    <true/>
-    <key>com.apple.security.cs.allow-jit</key>
-    <true/>
-    <!-- Disable W^X protection - allows modifying executable code pages -->
-    <key>com.apple.security.cs.disable-executable-page-protection</key>
     <true/>
 </dict>
 </plist>

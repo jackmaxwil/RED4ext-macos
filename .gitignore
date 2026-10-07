@@ -383,5 +383,6 @@ release/
 
 # macOS port
 build-macos*/
+build-native-hooks/
 scripts/re_tools/**/*.json
 scripts/re_tools/nativedb_data/

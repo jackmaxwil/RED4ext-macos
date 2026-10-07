@@ -73,6 +73,31 @@ if(APPLE)
 
     add_test(NAME IntegrationTests COMMAND IntegrationTests)
 
+    add_library(native_hook_plugin_stub SHARED native_hook/plugin_stub.c)
+    set_target_properties(native_hook_plugin_stub PROPERTIES
+        PREFIX "lib"
+        OUTPUT_NAME "native_hook_plugin_stub"
+    )
+
+    add_executable(native_hook_tests
+        native_hook/main.cpp
+        ${CMAKE_SOURCE_DIR}/src/dll/Platform/NativeHook.cpp
+        ${CMAKE_SOURCE_DIR}/src/dll/Platform/MainLookup.cpp
+    )
+    target_include_directories(native_hook_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/dll)
+    target_compile_definitions(native_hook_tests PRIVATE RED4EXT_PLATFORM_MACOS)
+    target_link_libraries(native_hook_tests PRIVATE ${CMAKE_DL_LIBS})
+    add_dependencies(native_hook_tests native_hook_plugin_stub)
+
+    add_custom_command(TARGET native_hook_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:native_hook_plugin_stub> $<TARGET_FILE_DIR:native_hook_tests>
+        COMMAND /bin/sh ${CMAKE_SOURCE_DIR}/scripts/codesign_macos.sh dylib $<TARGET_FILE_DIR:native_hook_tests>/$<TARGET_FILE_NAME:native_hook_plugin_stub>
+        COMMAND /bin/sh ${CMAKE_SOURCE_DIR}/scripts/codesign_macos.sh exe $<TARGET_FILE:native_hook_tests>
+        COMMAND /bin/sh ${CMAKE_SOURCE_DIR}/scripts/codesign_macos.sh verify $<TARGET_FILE:native_hook_tests>
+    )
+
+    add_test(NAME native_hook_tests COMMAND native_hook_tests)
+
     # Performance benchmarks
     add_executable(PerformanceBenchmarks
         performance/HookOverheadBenchmark.cpp
