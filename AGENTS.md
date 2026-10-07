@@ -185,3 +185,25 @@ otool -l Cyberpunk2077                  # Segment info
 ```
 
 See `docs/CYBERPUNK_INTERNALS.md` for complete reference.
+
+## Learned User Preferences
+
+- When asked to "create a plan", make all design decisions autonomously — do not ask clarifying questions
+- When implementing a plan, do not edit the plan file itself
+- When a plan has todos, do not recreate them — mark them as `in_progress` sequentially and work through all of them without stopping
+- Prefer clean two-pass pipeline runs: generate base data without own prior output, then run analysis, then final merge — avoids stale-data oscillation
+- Commit changes in logical groups, not as a single monolithic commit
+- Standardize branch names before pushing (use `macos/feature-name` convention)
+- Run test commands in foreground with adequate `block_until_ms` — do not background with sleep-poll loops
+
+## Learned Workspace Facts
+
+- All cyberpunk repos live under `~/Development/cyberpunk/` (RED4ext, RED4ext.SDK, cp2077-tweak-xl, cp2077-archive-xl-macos, cp2077-metalfx-denoiser, cp2077-modmenu, macos-modmanager, cybermod-studio)
+- Reverse engineering analysis scripts live in `scripts/re_tools/` with JSON databases in the same directory
+- The RE pipeline order is: `cname_hash_scanner.py` → `vtable_propagator.py` → `vtable_hierarchy.py` → `callgraph_builder.py` → `cross_reference.py`
+- `function_map.json` is the unified output of `cross_reference.py` — all other tools read from it as seed data
+- The vtable propagator must treat names sourced only from `{vtable, vtable_propagated, vtable_hierarchy}` as regenerable to avoid stale-data loops
+- ARM64 CName hashes are primarily built via `MOVZ+MOVK` instruction sequences (not `ADRP+LDR`) — the `MOVZ+MOVK` scanner yields ~25K hits vs ~2 from `ADRP+LDR`
+- NativeDB (`nativedb_data/classes.json`, `globals.json`) provides 15,832 classes, 51,292 functions with parameter types, and class hierarchy
+- Current binary coverage: 176,330 discovered functions, 117,541 named (66.7%), with 10 analysis sources feeding the unified function map
+- The game binary is at `~/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/Cyberpunk2077.app/Contents/MacOS/Cyberpunk2077`
