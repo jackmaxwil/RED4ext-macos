@@ -9,6 +9,7 @@
 # Report: ../cp2077-metalfx-denoiser/scripts/rtbench_report.py over the runs, printed and saved next to the last run.
 # RTBENCH_SCENARIO picks another scenario with the same per-mode setup (passcost: what parts of the frame cost);
 # RTBENCH_SKIP is the shader name pattern passcost drops as "listed" (written as the plugin's skip-fingerprints.txt).
+# RTBENCH_EXPERIMENTS is cvarbatch's list of config variable experiments (copied as the plugin's cvar-experiments.txt).
 # CP_INI (an engine config file for every run, see cp-run) passes through.
 # RTBENCH_CAPTURE=1 also writes an Xcode GPU capture (.gputrace) of one frame at the first spot (Metal's capture
 # layer is enabled for the whole run, so frame times are not comparable with runs without it).
@@ -33,6 +34,10 @@ if [[ -n "${RTBENCH_SKIP:-}" ]]; then
     GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
     python3 "$(dirname "$REPORT")/skip_list.py" "$RTBENCH_SKIP" \
         >"$GAME_DIR/red4ext/plugins/MetalFXDenoiser/skip-fingerprints.txt"
+fi
+if [[ -n "${RTBENCH_EXPERIMENTS:-}" ]]; then
+    GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
+    cp "$RTBENCH_EXPERIMENTS" "$GAME_DIR/red4ext/plugins/MetalFXDenoiser/cvar-experiments.txt"
 fi
 runs=()
 for mode in "${MODES[@]}"; do
