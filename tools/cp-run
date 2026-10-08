@@ -299,7 +299,8 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
     if lsappinfo info -only pid "$(lsappinfo front)" 2>/dev/null | grep -q "=$GAME_PID\$"; then
         say "WARNING: the game became the frontmost app ($((now - START)) s in); giving focus back to ${USER_APP:-?}"
         FRONT_REPORTED=$((FRONT_REPORTED + 1))
-        [[ -n "$USER_APP" ]] && open -b "$USER_APP"
+        # Never fails the run: the app may be one open cannot activate (a system password prompt, for example).
+        [[ -n "$USER_APP" ]] && open -b "$USER_APP" 2>/dev/null || true
     fi
     if [[ -f "$LOGS_DIR/autotest.log" ]] && grep -q '"event":"DONE"' "$LOGS_DIR/autotest.log"; then
         OUTCOME=results
@@ -346,8 +347,10 @@ cp "$LOGS_DIR"/{hookstats.json,milestones.log,autotest.log,rtti_layout_macos.jso
 latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
 [[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
 find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
-if [[ "$MTL_DIR" != "$RUN_DIR" ]] && ls -d "$MTL_DIR"/*.json* "$MTL_DIR"/*.gputrace >/dev/null 2>&1; then
-    mkdir -p "$RUN_DIR/metal" && mv "$MTL_DIR"/*.json* "$MTL_DIR"/*.gputrace "$RUN_DIR/metal/" 2>/dev/null || true
+if [[ "$MTL_DIR" != "$RUN_DIR" ]]; then
+    for result in "$MTL_DIR"/*.json "$MTL_DIR"/*.jsonl "$MTL_DIR"/*.gputrace; do
+        [[ -e "$result" ]] && mkdir -p "$RUN_DIR/metal" && mv "$result" "$RUN_DIR/metal/"
+    done
 fi
 find "$HOME/Library/Logs/DiagnosticReports" -name 'Cyberpunk2077*.ips' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
 
