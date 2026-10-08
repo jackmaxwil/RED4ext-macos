@@ -9,6 +9,7 @@
 # Report: ../cp2077-metalfx-denoiser/scripts/rtbench_report.py over the runs, printed and saved next to the last run.
 # RTBENCH_SCENARIO picks another scenario with the same per-mode setup (passcost: what parts of the frame cost);
 # RTBENCH_SKIP is the shader name pattern passcost drops as "listed" (written as the plugin's skip-fingerprints.txt).
+# CP_INI (an engine config file for every run, see cp-run) passes through.
 # RTBENCH_CAPTURE=1 also writes an Xcode GPU capture (.gputrace) of one frame at the first spot (Metal's capture
 # layer is enabled for the whole run, so frame times are not comparable with runs without it).
 set -euo pipefail

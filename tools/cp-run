@@ -72,6 +72,9 @@ restore() {
     fi
     if [[ -f "$RUN_DIR/backup/config.ini" ]]; then cp -p "$RUN_DIR/backup/config.ini" "$R4E_DIR/config.ini"; else rm -f "$R4E_DIR/config.ini"; fi
     rm -rf "$AUTOTEST_DIR" "$GAME_DIR/r6/scripts/zz_red4ext_plugins" "$GAME_DIR/r6/tweaks/cp_autotest.yaml"
+    if [[ -n "${CP_INI:-}" && -n "${INI_PATH:-}" ]]; then
+        if [[ -f "$RUN_DIR/backup/engine.ini" ]]; then cp -p "$RUN_DIR/backup/engine.ini" "$INI_PATH"; else rm -f "$INI_PATH"; fi
+    fi
     cp -p "$RUN_DIR/backup"/final.redscripts* "$CACHE/"
 }
 trap restore EXIT
@@ -148,6 +151,16 @@ ignored = [${ignored_list%, }]
 backend = "native_inline"
 core_hooks = [${core_list%, }]
 EOF
+
+# CP_INI: an engine config file for this run (for example "[RayTracing/Reference]\nRayNumber = 8"), installed as
+# engine/config/platform/mac/$CP_INI_NAME (default zz_cp_autotest.ini) and removed on exit; a file of that name that
+# was already there is backed up and restored.
+INI_PATH="$GAME_DIR/engine/config/platform/mac/${CP_INI_NAME:-zz_cp_autotest.ini}"
+if [[ -n "${CP_INI:-}" ]]; then
+    [[ -f "$INI_PATH" ]] && cp -p "$INI_PATH" "$RUN_DIR/backup/engine.ini"
+    cp "$CP_INI" "$INI_PATH"
+    say "engine config for this run: $(tr '\n' ' ' <"$CP_INI")"
+fi
 
 # --- autotest scripts (non-boot scenarios) --------------------------------------------------------
 if [[ "$SCENARIO" != boot ]]; then
