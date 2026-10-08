@@ -34,6 +34,9 @@ std::vector<std::string> MissingLibraries(const std::filesystem::path& aDylib)
     if (header.magic != MH_MAGIC_64)
         return missing;
 
+    // Load commands: the plugin's rpaths first, then its libraries.
+    std::vector<std::string> rpaths;
+    std::vector<std::string> libraries;
     size_t offset = sizeof(mach_header_64);
     for (uint32_t i = 0; i < header.ncmds && offset + sizeof(load_command) <= data.size(); ++i)
     {
@@ -44,21 +47,51 @@ std::vector<std::string> MissingLibraries(const std::filesystem::path& aDylib)
             dylib_command dylib;
             std::memcpy(&dylib, data.data() + offset, sizeof(dylib));
             const char* name = data.data() + offset + dylib.dylib.name.offset;
-            std::string path(name, strnlen(name, command.cmdsize - dylib.dylib.name.offset));
-            bool present = path.starts_with("/usr/lib/") || path.starts_with("/System/");
-            if (!present && path.starts_with("@"))
-            {
-                // @rpath/@loader_path libraries are expected next to the plugin.
-                present = std::filesystem::exists(aDylib.parent_path() / std::filesystem::path(path).filename());
-            }
-            else if (!present)
-            {
-                present = std::filesystem::exists(path);
-            }
-            if (!present)
-                missing.push_back(path);
+            libraries.emplace_back(name, strnlen(name, command.cmdsize - dylib.dylib.name.offset));
+        }
+        else if (command.cmd == LC_RPATH && offset + sizeof(rpath_command) <= data.size())
+        {
+            rpath_command rpath;
+            std::memcpy(&rpath, data.data() + offset, sizeof(rpath));
+            const char* name = data.data() + offset + rpath.path.offset;
+            rpaths.emplace_back(name, strnlen(name, command.cmdsize - rpath.path.offset));
         }
         offset += command.cmdsize;
+    }
+
+    // @loader_path is the plugin's folder; @rpath is tried against each of the plugin's rpaths, as dyld does, and
+    // next to the plugin.
+    const auto loaderDir = aDylib.parent_path().string();
+    const auto expand = [&](std::string path)
+    {
+        if (path.starts_with("@loader_path"))
+            path = loaderDir + path.substr(std::strlen("@loader_path"));
+        return path;
+    };
+    for (const auto& path : libraries)
+    {
+        bool present = path.starts_with("/usr/lib/") || path.starts_with("/System/");
+        if (!present && path.starts_with("@rpath/"))
+        {
+            const auto rest = path.substr(std::strlen("@rpath/"));
+            present = std::filesystem::exists(aDylib.parent_path() / rest);
+            for (const auto& rpath : rpaths)
+                present = present || std::filesystem::exists(expand(rpath) + "/" + rest);
+        }
+        else if (!present && path.starts_with("@loader_path"))
+        {
+            present = std::filesystem::exists(expand(path));
+        }
+        else if (!present && path.starts_with("@"))
+        {
+            present = std::filesystem::exists(aDylib.parent_path() / std::filesystem::path(path).filename());
+        }
+        else if (!present)
+        {
+            present = std::filesystem::exists(path);
+        }
+        if (!present)
+            missing.push_back(path);
     }
     return missing;
 }
