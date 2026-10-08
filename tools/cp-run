@@ -16,7 +16,8 @@
 # reach it through its own event queue. Never run anything here that activates the game or moves the real cursor.
 #
 # Launches the game binary directly with RED4ext injected, in a 1280x720 window.
-# The user's UserSettings.json and red4ext/config.ini are backed up and restored on any exit.
+# The user's UserSettings.json and red4ext/config.ini are backed up and restored on any exit. CP_SETTINGS changes
+# options in UserSettings.json for the run (see below); CP_TAG is passed to the scenario as CpAutotestTag().
 # Artifacts go to RED4ext/runs/<timestamp>-<scenario>/. Exit: 0 pass, 1 fail, 2 precondition error.
 set -euo pipefail
 
@@ -75,12 +76,30 @@ restore() {
 }
 trap restore EXIT
 
-python3 - "$SETTINGS" <<'EOF'
+python3 - "$SETTINGS" "${CP_SETTINGS:-}" <<'EOF'
 import json, sys
 p = sys.argv[1]
 d = json.load(open(p))
+# CP_SETTINGS="group:Name=value,...", e.g. "/graphics/raytracing:RayTracing=true". Values: true/false, numbers, or
+# strings; a list option takes "value@index" (its position in the game's list of values; the game does not start
+# when a list option has no index).
+wanted = {}
+for item in filter(None, sys.argv[2].split(",")):
+    key, value = item.split("=", 1)
+    group, name = key.rsplit(":", 1)
+    wanted[(group, name)] = True if value == "true" else False if value == "false" else value
 for g in d["data"]:
     for o in g.get("options", []):
+        if (g["group_name"], o["name"]) in wanted:
+            v = wanted.pop((g["group_name"], o["name"]))
+            if isinstance(o["value"], (int, float)) and not isinstance(o["value"], bool) and isinstance(v, str):
+                v = type(o["value"])(v)
+            if "index" in o:
+                if not isinstance(v, str) or "@" not in v:
+                    sys.exit(f"CP_SETTINGS: {o['name']} is a list option; give value@index")
+                v, i = v.rsplit("@", 1)
+                o["index"] = int(i)
+            o["value"] = v
         if g["group_name"] == "/video/display" and o["name"] == "WindowMode":
             o["value"], o["index"] = "Windowed", 0
         if g["group_name"] == "/video/display" and o["name"] == "Resolution":
@@ -88,6 +107,8 @@ for g in d["data"]:
             # game matches by value instead of keeping the native resolution's index.
             o["value"] = "1280x720"
             o.pop("index", None)
+if wanted:
+    sys.exit(f"CP_SETTINGS: not in UserSettings.json: {sorted(wanted)}")
 json.dump(d, open(p, "w"), indent=2)
 EOF
 
@@ -141,6 +162,8 @@ if [[ "$SCENARIO" != boot ]]; then
     {
         printf 'module CpAutotest\n\npublic func CpAutotestScenario() -> String = "%s";\n' "$SCENARIO"
         printf 'public func CpAutotestInWorld() -> Bool = %s;\n' "$IN_WORLD"
+        # CP_TAG: a free-form label for the run (rtbench: the ray tracing mode set through CP_SETTINGS).
+        printf 'public func CpAutotestTag() -> String = "%s";\n' "${CP_TAG:-}"
         grep -q "func CpRunWorldStep" "$scenario_checks" ||
             printf 'public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float = -1.0;\n'
     } >"$AUTOTEST_DIR/Scenario.reds"
@@ -150,6 +173,10 @@ if [[ "$SCENARIO" != boot ]]; then
         cp "$TOOLS_DIR/autotest/scenarios/$SCENARIO.yaml" "$GAME_DIR/r6/tweaks/cp_autotest.yaml"
     fi
 fi
+
+# The MetalFX Denoiser plugin's Metal tracer reads requests from, and writes results to, this folder.
+MTL_DIR="$R4E_DIR/plugins/MetalFXDenoiser/trace"
+[[ -d "$R4E_DIR/plugins/MetalFXDenoiser" ]] && mkdir -p "$MTL_DIR" && rm -f "$MTL_DIR"/* || MTL_DIR="$RUN_DIR"
 
 # --- launch ---------------------------------------------------------------------------------------
 rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.log" "$LOGS_DIR/rtti_layout_macos.json"
@@ -215,8 +242,8 @@ shot() { # screenshot of the game window, if it has one
     id=$("$RUN_DIR/window-id" "$GAME_PID" 2>/dev/null || true)
     [[ -n "$id" ]] && screencapture -x -o -l "$id" "$RUN_DIR/$1.png" 2>/dev/null || true
 }
-press_key() { # <macOS key code>
-    "$RUN_DIR/keypress" "$GAME_PID" "$1" >>"$RUN_DIR/keys.log" 2>&1 || true
+press_key() { # <macOS key code> [hold ms]
+    "$RUN_DIR/keypress" "$GAME_PID" "$1" ${2:+"$2"} >>"$RUN_DIR/keys.log" 2>&1 || true
 }
 in_world() { awk '/LOAD_LAST_CHECKPOINT/{l=1} l&&/WORLD_READY/{f=1} END{exit !f}' "$LOGS_DIR/autotest.log" 2>/dev/null; }
 OUTCOME=timeout
@@ -240,12 +267,30 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
     # and for the scenario's edited tweak file ({"event":"NEXT_TWEAK"}: <scenario>.next.yaml replaces the installed
     # one, for TweakXL hot reload).
     if [[ -f "$LOGS_DIR/autotest.log" ]]; then
-        keys=$(grep -o '"event":"PRESS","key":[0-9]*' "$LOGS_DIR/autotest.log" | sed 's/.*://' || true)
+        # {"event":"PRESS","key":<code>,"hold":<ms>} holds the key that long, in the background of this loop.
+        keys=$(grep -o '"event":"PRESS","key":[0-9]*\(,"hold":[0-9]*\)\{0,1\}' "$LOGS_DIR/autotest.log" |
+            sed 's/.*"key":\([0-9]*\)\(,"hold":\([0-9]*\)\)\{0,1\}/\1:\3/' || true)
         n=0
         for k in $keys; do
             n=$((n + 1))
-            if [[ $n -gt ${PRESSES_DONE:-0} ]]; then press_key "$k"; PRESSES_DONE=$n; fi
+            if [[ $n -gt ${PRESSES_DONE:-0} ]]; then
+                if [[ -n "${k#*:}" ]]; then press_key "${k%%:*}" "${k#*:}" & else press_key "${k%%:*}"; fi
+                PRESSES_DONE=$n
+            fi
         done
+        # {"event":"MTL","kind":"trace"|"perf","name":...,"frames":N}: a request for the MetalFX Denoiser plugin's
+        # Metal tracer (METALFX_TRACE=1), as a file in its trace folder; its results are collected into metal/.
+        reqs=$(grep -o '"event":"MTL","kind":"[a-z]*","name":"[^"]*","frames":[0-9]*' "$LOGS_DIR/autotest.log" |
+            sed 's/.*"kind":"\([a-z]*\)","name":"\([^"]*\)","frames":\([0-9]*\)/\1 \2 \3/' || true)
+        n=0
+        while read -r kind name frames; do
+            [[ -n "$kind" ]] || continue
+            n=$((n + 1))
+            if [[ $n -gt ${MTL_DONE:-0} ]]; then
+                printf '%s %s %s\n' "$kind" "$name" "$frames" >"$MTL_DIR/req-$(printf %04d $n)"
+                MTL_DONE=$n
+            fi
+        done <<<"$reqs"
         if [[ -z "${TWEAK_SWAPPED:-}" ]] && grep -q '"event":"NEXT_TWEAK"' "$LOGS_DIR/autotest.log"; then
             cp "$TOOLS_DIR/autotest/scenarios/$SCENARIO.next.yaml" "$GAME_DIR/r6/tweaks/cp_autotest.yaml"; TWEAK_SWAPPED=1
         fi
@@ -275,6 +320,12 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 5))
     fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
+    # A scenario run reports its first event within a minute or two; a game that never gets there is stuck.
+    if [[ "$SCENARIO" != boot && $((now - START)) -ge ${CP_BOOT_TIMEOUT:-180} && ! -f "$LOGS_DIR/autotest.log" ]]; then
+        say "no autotest event after ${CP_BOOT_TIMEOUT:-180} s: the game is stuck before its scripts run"
+        OUTCOME=stuck
+        break
+    fi
     sleep 1
 done
 if kill -0 "$GAME_PID" 2>/dev/null; then
@@ -294,6 +345,9 @@ cp "$LOGS_DIR"/{hookstats.json,milestones.log,autotest.log,rtti_layout_macos.jso
 latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
 [[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
 find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
+if [[ "$MTL_DIR" != "$RUN_DIR" ]] && ls "$MTL_DIR"/*.json* >/dev/null 2>&1; then
+    mkdir -p "$RUN_DIR/metal" && mv "$MTL_DIR"/*.json* "$RUN_DIR/metal/"
+fi
 find "$HOME/Library/Logs/DiagnosticReports" -name 'Cyberpunk2077*.ips' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
 
 # results.json from the autotest's JSON lines (red4ext/logs/autotest.log)
