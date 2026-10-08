@@ -15,6 +15,7 @@
 # CP_INI (an engine config file for every run, see cp-run) passes through.
 # RTBENCH_DUMP="<pipeline label or function name>,..." adds the textures those dispatches declare to the dump scenario's
 # PNGs (the plugin's dump-pipes.txt, deleted afterwards).
+# RTBENCH_PRESET is the MetalFX quality preset as <value>@<index> (Quality@1 by default; Balanced@2, Performance@3).
 # RTBENCH_CAPTURE=1 also writes an Xcode GPU capture (.gputrace) of one frame at the first spot (Metal's capture
 # layer is enabled for the whole run, so frame times are not comparable with runs without it).
 set -euo pipefail
@@ -28,7 +29,7 @@ RT=/graphics/raytracing
 # labels: index 1 runs the MetalFX temporal scaler (a saved "FSR2"@1 did), index 3 runs FSR3 (traced: ffx_fsr3upscaler
 # passes). The other lists follow the order rtbench logs: MetalFX Auto Quality Balanced Performance Dynamic;
 # RayTracedLighting Off Medium Ultra Psycho.
-COMMON="/graphics/presets:ResolutionScaling=MetalFX@1,/graphics/presets:MetalFX=Quality@1,/graphics/presets:FrameGeneration=Off@0"
+COMMON="/graphics/presets:ResolutionScaling=MetalFX@1,/graphics/presets:MetalFX=${RTBENCH_PRESET:-Quality@1},/graphics/presets:FrameGeneration=Off@0"
 RT_ON="$RT:RayTracing=true,$RT:RayTracedReflections=true,$RT:RayTracedSunShadows=true,$RT:RayTracedLocalShadows=true"
 # Shader names for the pass lists: an index of the game's shader caches (derived from game files, not committed).
 INDEX="$TOOLS/../../cp2077-metalfx-denoiser/scripts/shader_index.json"
