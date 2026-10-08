@@ -16,10 +16,11 @@ MODES=("$@")
 [[ ${#MODES[@]} -gt 0 ]] || MODES=(raster rt_ultra rt_psycho pt)
 
 RT=/graphics/raytracing
-# List options are value@index, the index being the value's position in the game's list (logged by rtbench as
-# BENCH_MODE): ResolutionScaling Off FSR2 FSR3 MetalFX; MetalFX Auto Quality Balanced Performance Dynamic;
+# List options are value@index. The game applies the index, and for ResolutionScaling the index does not follow the
+# labels: index 1 runs the MetalFX temporal scaler (a saved "FSR2"@1 did), index 3 runs FSR3 (traced: ffx_fsr3upscaler
+# passes). The other lists follow the order rtbench logs: MetalFX Auto Quality Balanced Performance Dynamic;
 # RayTracedLighting Off Medium Ultra Psycho.
-COMMON="/graphics/presets:ResolutionScaling=MetalFX@3,/graphics/presets:MetalFX=Quality@1,/graphics/presets:FrameGeneration=Off@0"
+COMMON="/graphics/presets:ResolutionScaling=MetalFX@1,/graphics/presets:MetalFX=Quality@1,/graphics/presets:FrameGeneration=Off@0"
 RT_ON="$RT:RayTracing=true,$RT:RayTracedReflections=true,$RT:RayTracedSunShadows=true,$RT:RayTracedLocalShadows=true"
 # Shader names for the pass lists: an index of the game's shader caches (derived from game files, not committed).
 INDEX="$TOOLS/../../cp2077-metalfx-denoiser/scripts/shader_index.json"
