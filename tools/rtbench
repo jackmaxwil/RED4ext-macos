@@ -1,0 +1,38 @@
+#!/bin/bash
+# Ray tracing benchmark: runs tools/cp-run rtbench once per ray tracing mode, then writes the report.
+#
+#   tools/rtbench [mode...]      modes: raster rt_ultra rt_psycho pt (default: all four)
+#
+# Each run sets its mode in UserSettings.json (cp-run's CP_SETTINGS; your settings are restored afterwards), always
+# with MetalFX Quality upscaling and no frame generation, and loads the MetalFX Denoiser plugin with its Metal tracer
+# for frame times and frame traces. Like every cp-run test, the game runs in the background and never takes focus.
+# Report: ../cp2077-metalfx-denoiser/scripts/rtbench_report.py over the runs, printed and saved next to the last run.
+set -euo pipefail
+TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPORT="$TOOLS/../../cp2077-metalfx-denoiser/scripts/rtbench_report.py"
+MODES=("$@")
+[[ ${#MODES[@]} -gt 0 ]] || MODES=(raster rt_ultra rt_psycho pt)
+
+RT=/graphics/raytracing
+# List options are value@index, the index being the value's position in the game's list (logged by rtbench as
+# BENCH_MODE): ResolutionScaling Off FSR2 FSR3 MetalFX; MetalFX Auto Quality Balanced Performance Dynamic;
+# RayTracedLighting Off Medium Ultra Psycho.
+COMMON="/graphics/presets:ResolutionScaling=MetalFX@3,/graphics/presets:MetalFX=Quality@1,/graphics/presets:FrameGeneration=Off@0"
+RT_ON="$RT:RayTracing=true,$RT:RayTracedReflections=true,$RT:RayTracedSunShadows=true,$RT:RayTracedLocalShadows=true"
+# Shader names for the pass lists: an index of the game's shader caches (derived from game files, not committed).
+INDEX="$TOOLS/../../cp2077-metalfx-denoiser/scripts/shader_index.json"
+[[ -s "$INDEX" ]] || python3 "$(dirname "$REPORT")/shader_index.py" >"$INDEX"
+runs=()
+for mode in "${MODES[@]}"; do
+    case "$mode" in
+    raster) settings="$RT:RayTracing=false,$RT:RayTracedPathTracing=false" ;;
+    rt_ultra) settings="$RT_ON,$RT:RayTracedLighting=Ultra@2,$RT:RayTracedPathTracing=false" ;;
+    rt_psycho) settings="$RT_ON,$RT:RayTracedLighting=Psycho@3,$RT:RayTracedPathTracing=false" ;;
+    pt) settings="$RT_ON,$RT:RayTracedLighting=Ultra@2,$RT:RayTracedPathTracing=true" ;;
+    *) echo "unknown mode: $mode (raster rt_ultra rt_psycho pt)" >&2; exit 2 ;;
+    esac
+    CP_SETTINGS="$COMMON,$settings" CP_TAG="$mode" CP_PLUGINS=MetalFXDenoiser METALFX_TRACE=1 \
+        "$TOOLS/cp-run" rtbench --timeout 900 || echo "[rtbench] $mode run failed; continuing"
+    runs+=("$(ls -td "$TOOLS"/../runs/*-rtbench | head -1)")
+done
+python3 "$REPORT" "${runs[@]}" | tee "${runs[${#runs[@]}-1]}/rtbench.md"
