@@ -176,7 +176,7 @@ fi
 
 # The MetalFX Denoiser plugin's Metal tracer reads requests from, and writes results to, this folder.
 MTL_DIR="$R4E_DIR/plugins/MetalFXDenoiser/trace"
-[[ -d "$R4E_DIR/plugins/MetalFXDenoiser" ]] && mkdir -p "$MTL_DIR" && rm -f "$MTL_DIR"/* || MTL_DIR="$RUN_DIR"
+[[ -d "$R4E_DIR/plugins/MetalFXDenoiser" ]] && mkdir -p "$MTL_DIR" && rm -rf "${MTL_DIR:?}"/* || MTL_DIR="$RUN_DIR"
 
 # --- launch ---------------------------------------------------------------------------------------
 rm -f "$LOGS_DIR/hookstats.json" "$LOGS_DIR/milestones.log" "$LOGS_DIR/autotest.log" "$LOGS_DIR/rtti_layout_macos.json"
@@ -278,8 +278,9 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
                 PRESSES_DONE=$n
             fi
         done
-        # {"event":"MTL","kind":"trace"|"perf","name":...,"frames":N}: a request for the MetalFX Denoiser plugin's
-        # Metal tracer (METALFX_TRACE=1), as a file in its trace folder; its results are collected into metal/.
+        # {"event":"MTL","kind":"trace"|"perf"|"capture","name":...,"frames":N}: a request for the MetalFX Denoiser
+        # plugin's Metal tracer (METALFX_TRACE=1; capture also needs MTL_CAPTURE_ENABLED=1), as a file in its trace
+        # folder; its results are collected into metal/.
         reqs=$(grep -o '"event":"MTL","kind":"[a-z]*","name":"[^"]*","frames":[0-9]*' "$LOGS_DIR/autotest.log" |
             sed 's/.*"kind":"\([a-z]*\)","name":"\([^"]*\)","frames":\([0-9]*\)/\1 \2 \3/' || true)
         n=0
@@ -345,8 +346,8 @@ cp "$LOGS_DIR"/{hookstats.json,milestones.log,autotest.log,rtti_layout_macos.jso
 latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
 [[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
 find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
-if [[ "$MTL_DIR" != "$RUN_DIR" ]] && ls "$MTL_DIR"/*.json* >/dev/null 2>&1; then
-    mkdir -p "$RUN_DIR/metal" && mv "$MTL_DIR"/*.json* "$RUN_DIR/metal/"
+if [[ "$MTL_DIR" != "$RUN_DIR" ]] && ls -d "$MTL_DIR"/*.json* "$MTL_DIR"/*.gputrace >/dev/null 2>&1; then
+    mkdir -p "$RUN_DIR/metal" && mv "$MTL_DIR"/*.json* "$MTL_DIR"/*.gputrace "$RUN_DIR/metal/" 2>/dev/null || true
 fi
 find "$HOME/Library/Logs/DiagnosticReports" -name 'Cyberpunk2077*.ips' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
 

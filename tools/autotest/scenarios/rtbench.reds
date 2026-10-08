@@ -151,10 +151,11 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
                 return 0.1;
             }
             GameInstance.GetTimeSystem(game).SetGameTimeByHMS(23, 0, 0);
-            // A new area streams in for a while after the teleport (GPU frame times ~100 ms at first).
-            return 25.0;
+            // A new area streams in for a while after the teleport (GPU frame times of 65-150 ms 25 s after it).
+            return 45.0;
         }
-        return 5.0;
+        // Spot 0 also settles after the save loads.
+        return 30.0;
     }
     if player.cpBenchSkip {
         return 0.1;
@@ -180,7 +181,9 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
         case 5:
             if spot == 0 {
                 CpBenchMtl("trace", tag, 1);
-                return 5.0;
+                // Written only when the game runs with MTL_CAPTURE_ENABLED=1 (tools/rtbench: RTBENCH_CAPTURE=1).
+                CpBenchMtl("capture", tag, 1);
+                return 8.0;
             }
             return 0.1;
         case 6:

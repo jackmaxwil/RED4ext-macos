@@ -7,6 +7,8 @@
 # with MetalFX Quality upscaling and no frame generation, and loads the MetalFX Denoiser plugin with its Metal tracer
 # for frame times and frame traces. Like every cp-run test, the game runs in the background and never takes focus.
 # Report: ../cp2077-metalfx-denoiser/scripts/rtbench_report.py over the runs, printed and saved next to the last run.
+# RTBENCH_CAPTURE=1 also writes an Xcode GPU capture (.gputrace) of one frame at the first spot (Metal's capture
+# layer is enabled for the whole run, so frame times are not comparable with runs without it).
 set -euo pipefail
 TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT="$TOOLS/../../cp2077-metalfx-denoiser/scripts/rtbench_report.py"
@@ -31,6 +33,7 @@ for mode in "${MODES[@]}"; do
     pt) settings="$RT_ON,$RT:RayTracedLighting=Ultra@2,$RT:RayTracedPathTracing=true" ;;
     *) echo "unknown mode: $mode (raster rt_ultra rt_psycho pt)" >&2; exit 2 ;;
     esac
+    [[ "${RTBENCH_CAPTURE:-0}" == 1 ]] && export MTL_CAPTURE_ENABLED=1
     CP_SETTINGS="$COMMON,$settings" CP_TAG="$mode" CP_PLUGINS=MetalFXDenoiser METALFX_TRACE=1 \
         "$TOOLS/cp-run" rtbench --timeout 900 || echo "[rtbench] $mode run failed; continuing"
     runs+=("$(ls -td "$TOOLS"/../runs/*-rtbench | head -1)")
