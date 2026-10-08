@@ -9,8 +9,12 @@
 # Report: ../cp2077-metalfx-denoiser/scripts/rtbench_report.py over the runs, printed and saved next to the last run.
 # RTBENCH_SCENARIO picks another scenario with the same per-mode setup (passcost: what parts of the frame cost);
 # RTBENCH_SKIP is the shader name pattern passcost drops as "listed" (written as the plugin's skip-fingerprints.txt).
+# RTBENCH_CVARS="<group>/<name>=<value>,..." sets engine config variables for every run (the plugin's
+# cvar-startup.txt, deleted afterwards); RTBENCH_LABEL is appended to the mode in tags (e.g. rt_ultra-nonrd).
 # RTBENCH_EXPERIMENTS is cvarbatch's list of config variable experiments (copied as the plugin's cvar-experiments.txt).
 # CP_INI (an engine config file for every run, see cp-run) passes through.
+# RTBENCH_DUMP="<pipeline label or function name>,..." adds the textures those dispatches declare to the dump scenario's
+# PNGs (the plugin's dump-pipes.txt, deleted afterwards).
 # RTBENCH_CAPTURE=1 also writes an Xcode GPU capture (.gputrace) of one frame at the first spot (Metal's capture
 # layer is enabled for the whole run, so frame times are not comparable with runs without it).
 set -euo pipefail
@@ -39,6 +43,13 @@ if [[ -n "${RTBENCH_EXPERIMENTS:-}" ]]; then
     GAME_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}"
     cp "$RTBENCH_EXPERIMENTS" "$GAME_DIR/red4ext/plugins/MetalFXDenoiser/cvar-experiments.txt"
 fi
+PLUGIN_DIR="${CP2077_GAME_DIR:-$HOME/Library/Application Support/Steam/steamapps/common/Cyberpunk 2077}/red4ext/plugins/MetalFXDenoiser"
+rm -f "$PLUGIN_DIR/cvar-startup.txt" "$PLUGIN_DIR/dump-pipes.txt"
+trap 'rm -f "$PLUGIN_DIR/cvar-startup.txt" "$PLUGIN_DIR/dump-pipes.txt"' EXIT
+if [[ -n "${RTBENCH_CVARS:-}" ]]; then
+    tr ',' '\n' <<<"$RTBENCH_CVARS" >"$PLUGIN_DIR/cvar-startup.txt"
+fi
+[[ -n "${RTBENCH_DUMP:-}" ]] && echo "$RTBENCH_DUMP" >"$PLUGIN_DIR/dump-pipes.txt"
 runs=()
 for mode in "${MODES[@]}"; do
     case "$mode" in
@@ -49,7 +60,7 @@ for mode in "${MODES[@]}"; do
     *) echo "unknown mode: $mode (raster rt_ultra rt_psycho pt)" >&2; exit 2 ;;
     esac
     [[ "${RTBENCH_CAPTURE:-0}" == 1 ]] && export MTL_CAPTURE_ENABLED=1
-    CP_SETTINGS="$COMMON,$settings" CP_TAG="$mode" CP_PLUGINS=MetalFXDenoiser METALFX_TRACE=1 \
+    CP_SETTINGS="$COMMON,$settings" CP_TAG="$mode${RTBENCH_LABEL:-}" CP_PLUGINS=MetalFXDenoiser METALFX_TRACE=1 \
         "$TOOLS/cp-run" "$SCENARIO" --timeout 900 || echo "[rtbench] $mode run failed; continuing"
     runs+=("$(ls -td "$TOOLS"/../runs/*-"$SCENARIO" | head -1)")
 done
