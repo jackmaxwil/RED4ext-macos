@@ -4,6 +4,10 @@ All notable changes to the RED4ext macOS port.
 
 ## [Unreleased]
 
+## [0.1.0-rc6] - 2026-10-07
+
+- **Less stutter:** TweakXL and ArchiveXL opened their log file and wrote to the terminal for every log line, on the game thread. ArchiveXL logs thousands of lines while character meshes stream in. They now keep the file open, buffer it, and stay off the terminal.
+
 ## [0.1.0-rc5] - 2026-10-07
 
 - **Fix: TweakXL and ArchiveXL did not load on most Macs.** rc1 to rc4 linked Homebrew's spdlog, fmt and yaml-cpp, which players don't have; the game then stopped at start. They are now built in. Releases are refused if any binary links a library outside macOS.
