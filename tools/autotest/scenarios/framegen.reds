@@ -43,15 +43,19 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
             CpFgMtl("perf", "s0-" + mode + "-fgon", 240);
             return 14.0;
     }
-    // Steps 5..64: a slow turn with frame generation on (60 steps of 1.5 degrees, 20 ms apart), a screenshot halfway.
-    if step < 65 {
-        CpFgTurn(player, player.cpFgYaw - 1.5 * Cast<Float>(step - 4));
+    // Steps 5..154: a slow turn with frame generation on (150 steps of 1 degree, one per frame: steady motion for the
+    // plugin's interpolation check), a screenshot halfway.
+    if step < 155 {
+        CpFgTurn(player, player.cpFgYaw - 1.0 * Cast<Float>(step - 4));
+        if step == 6 {
+            CpFgMtl("fgeval", "12", 0); // the plugin's interpolation check (FrameGen::Evaluate) during the steady turn
+        }
         if step == 35 {
             CpShot("s0-" + mode + "-fgturn");
         }
-        return 0.02;
+        return 0.0;
     }
-    if step == 65 {
+    if step == 155 {
         return 5.0;
     }
     CpFgMtl("framegen", "off", 0);
