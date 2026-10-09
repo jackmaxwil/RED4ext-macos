@@ -250,7 +250,6 @@ GAME_PID=$!
 # Compiled once per run: interpreting the Swift helpers takes seconds per call, too slow for a key press a step waits on.
 swiftc -O "$TOOLS_DIR/window-id.swift" -o "$RUN_DIR/window-id" 2>>"$RUN_DIR/keys.log" || true
 swiftc -O "$TOOLS_DIR/keypress.swift" -o "$RUN_DIR/keypress" 2>>"$RUN_DIR/keys.log" || true
-swiftc -O "$TOOLS_DIR/mousemove.swift" -o "$RUN_DIR/mousemove" 2>>"$RUN_DIR/keys.log" || true
 shot() { # screenshot of the game window, if it has one
     local id
     id=$("$RUN_DIR/window-id" "$GAME_PID" 2>/dev/null || true)
@@ -290,19 +289,6 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
             if [[ $n -gt ${PRESSES_DONE:-0} ]]; then
                 if [[ -n "${k#*:}" ]]; then press_key "${k%%:*}" "${k#*:}" & else press_key "${k%%:*}"; fi
                 PRESSES_DONE=$n
-            fi
-        done
-        # {"event":"MOUSE","dx":N,"dy":N,"steps":N,"ms":N}: mouse movement sent to the game process only, in the
-        # background of this loop (mousemove.swift).
-        moves=$(grep -o '"event":"MOUSE","dx":-\{0,1\}[0-9]*,"dy":-\{0,1\}[0-9]*,"steps":[0-9]*,"ms":[0-9]*' \
-            "$LOGS_DIR/autotest.log" | sed 's/[^-0-9,]//g; s/^,*//' || true)
-        n=0
-        for m in $moves; do
-            n=$((n + 1))
-            if [[ $n -gt ${MOVES_DONE:-0} ]]; then
-                IFS=, read -r mdx mdy msteps mms <<<"$m"
-                "$RUN_DIR/mousemove" "$GAME_PID" "$mdx" "$mdy" "$msteps" "$mms" >>"$RUN_DIR/keys.log" 2>&1 &
-                MOVES_DONE=$n
             fi
         done
         # {"event":"MTL","kind":"trace"|"perf"|"capture","name":...,"frames":N}: a request for the MetalFX Denoiser
