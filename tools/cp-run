@@ -341,6 +341,13 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         OUTCOME=stuck
         break
     fi
+    # Stalled in the world: no scenario step waits longer than 60 s between events (except soak and cvarbatch, which
+    # wait on the plugin), so a log that stops growing for CP_STALL_TIMEOUT seconds (default 120) means a hang.
+    if [[ "$SCENARIO" != soak && "$SCENARIO" != cvarbatch ]] && in_world && [[ $((now - $(stat -f %m "$LOGS_DIR/autotest.log"))) -ge ${CP_STALL_TIMEOUT:-120} ]]; then
+        say "no autotest event for ${CP_STALL_TIMEOUT:-120} s in the world: stalled"
+        OUTCOME=stuck
+        break
+    fi
     # Stuck on the start screen: after the game was briefly the frontmost app and lost focus again, it can ignore the
     # Space presses sent to it. Give up 2 minutes after the start screen instead of waiting for the timeout.
     if [[ -n "$START_ARGS" ]] || in_world; then :; elif [[ -z "${START_SCREEN_AT:-}" ]]; then
