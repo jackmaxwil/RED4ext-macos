@@ -65,7 +65,11 @@ for mode in "${MODES[@]}"; do
     esac
     [[ "${RTBENCH_CAPTURE:-0}" == 1 ]] && export MTL_CAPTURE_ENABLED=1
     CP_SETTINGS="$COMMON,$settings" CP_TAG="$mode${RTBENCH_LABEL:-}" CP_PLUGINS="MetalFXDenoiser${RTBENCH_PLUGINS:+,$RTBENCH_PLUGINS}" METALFX_TRACE=1 METALFX_DENOISE="${RTBENCH_DENOISE-off}" \
-        "$TOOLS/cp-run" "$SCENARIO" --timeout 900 || echo "[rtbench] $mode run failed; continuing"
+        "$TOOLS/cp-run" "$SCENARIO" --timeout 900 ||
+        { echo "[rtbench] $mode run failed; retrying once"; CP_SETTINGS="$COMMON,$settings" CP_TAG="$mode${RTBENCH_LABEL:-}" \
+            CP_PLUGINS="MetalFXDenoiser${RTBENCH_PLUGINS:+,$RTBENCH_PLUGINS}" METALFX_TRACE=1 \
+            METALFX_DENOISE="${RTBENCH_DENOISE-off}" "$TOOLS/cp-run" "$SCENARIO" --timeout 900 ||
+            echo "[rtbench] $mode run failed again; continuing"; }
     runs+=("$(ls -td "$TOOLS"/../runs/*-"$SCENARIO" | head -1)")
 done
 python3 "$REPORT" "${runs[@]}" | tee "${runs[${#runs[@]}-1]}/rtbench.md"

@@ -80,7 +80,7 @@ restore() {
 trap restore EXIT
 
 python3 - "$SETTINGS" "${CP_SETTINGS:-}" <<'EOF'
-import json, sys
+import json, os, sys
 p = sys.argv[1]
 d = json.load(open(p))
 # CP_SETTINGS="group:Name=value,...", e.g. "/graphics/raytracing:RayTracing=true". Values: true/false, numbers, or
@@ -108,7 +108,7 @@ for g in d["data"]:
         if g["group_name"] == "/video/display" and o["name"] == "Resolution":
             # The index points into the monitor's runtime resolution list, which is not stored here; drop it so the
             # game matches by value instead of keeping the native resolution's index.
-            o["value"] = "1280x720"
+            o["value"] = os.environ.get("CP_RESOLUTION", "1280x720")
             o.pop("index", None)
 if wanted:
     sys.exit(f"CP_SETTINGS: not in UserSettings.json: {sorted(wanted)}")
@@ -338,6 +338,15 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
     # A scenario run reports its first event within a minute or two; a game that never gets there is stuck.
     if [[ "$SCENARIO" != boot && $((now - START)) -ge ${CP_BOOT_TIMEOUT:-180} && ! -f "$LOGS_DIR/autotest.log" ]]; then
         say "no autotest event after ${CP_BOOT_TIMEOUT:-180} s: the game is stuck before its scripts run"
+        OUTCOME=stuck
+        break
+    fi
+    # Stuck on the start screen: after the game was briefly the frontmost app and lost focus again, it can ignore the
+    # Space presses sent to it. Give up 2 minutes after the start screen instead of waiting for the timeout.
+    if [[ -n "$START_ARGS" ]] || in_world; then :; elif [[ -z "${START_SCREEN_AT:-}" ]]; then
+        grep -q '"START_SCREEN"' "$LOGS_DIR/autotest.log" 2>/dev/null && START_SCREEN_AT=$now
+    elif [[ $((now - START_SCREEN_AT)) -ge 120 ]] && ! grep -q '"LOAD_LAST_CHECKPOINT"' "$LOGS_DIR/autotest.log"; then
+        say "still on the start screen 120 s after it appeared (key presses ignored): stuck"
         OUTCOME=stuck
         break
     fi
