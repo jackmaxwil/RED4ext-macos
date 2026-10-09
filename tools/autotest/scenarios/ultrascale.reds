@@ -1,7 +1,7 @@
 module CpAutotest
 
 // The render scale of MetalFX "Ultra Performance" (MetalFX Denoiser plugin: ConfigVars::SetUltraScale, request
-// "ultrascale <scale>"), at the save's position with time frozen. Per scale: set it, settle, screenshot, frame timing,
+// "ultrascale <scale>"), 2.5, 2.25 and 2, at the save's position with time frozen. Per scale: set it, settle, screenshot, frame timing,
 // then a turn (1 degree per frame) with a screenshot during it (the temporal upscaler in motion), and back.
 // Run through tools/rtbench: CP_RESOLUTION=3456x2160 RTBENCH_PRESET=Performance@3 RTBENCH_DENOISE=fx \
 //   RTBENCH_CVARS=MFX/OverrideEnable=1,MFX/Quality=4 RTBENCH_SCENARIO=ultrascale tools/rtbench pt
@@ -16,9 +16,9 @@ func CpUsMtl(kind: String, name: String, frames: Int32) -> Void {
 
 func CpUsScale(i: Int32) -> String {
     switch i {
-        case 0: return "3";
-        case 1: return "2.75";
-        default: return "2.5";
+        case 0: return "2.5";
+        case 1: return "2.25";
+        default: return "2";
     }
 }
 
@@ -38,13 +38,14 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
     }
     if step == 1 {
         time.SetTimeDilation(n"cpbench", 0.0);
+        CpUsMtl("framegen", "off", 0); // real frames only
         return 3.0;
     }
     // Per scale, 40 steps: 0 set, 1 screenshot, 2 timing, 3..32 turn (screenshot at 23), 33 turn back, 34..39 idle.
     let round = (step - 2) / 40;
     let phase = (step - 2) % 40;
     if round >= 3 {
-        CpUsMtl("ultrascale", "3", 0);
+        CpUsMtl("ultrascale", "2.5", 0);
         time.UnsetTimeDilation(n"cpbench");
         CpCheck("ultrascale_done", true, mode);
         return -1.0;

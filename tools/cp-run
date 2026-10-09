@@ -377,7 +377,7 @@ latest_log=$(ls -t "$LOGS_DIR"/red4ext*.log 2>/dev/null | head -1 || true)
 [[ -n "$latest_log" ]] && cp "$latest_log" "$RUN_DIR/red4ext.log"
 find "$R4E_DIR/plugins" -name '*.log' -newer "$RUN_DIR/.start" -exec cp {} "$RUN_DIR/" \; 2>/dev/null || true
 if [[ "$MTL_DIR" != "$RUN_DIR" ]]; then
-    for result in "$MTL_DIR"/*.json "$MTL_DIR"/*.jsonl "$MTL_DIR"/*.gputrace "$MTL_DIR"/*.png; do
+    for result in "$MTL_DIR"/*.json "$MTL_DIR"/*.jsonl "$MTL_DIR"/*.gputrace "$MTL_DIR"/*.png "$MTL_DIR"/*.bin; do
         [[ -e "$result" ]] && mkdir -p "$RUN_DIR/metal" && mv "$result" "$RUN_DIR/metal/"
     done
 fi

@@ -2,7 +2,8 @@ module CpAutotest
 
 // Skin under the MetalFX Denoiser (player report: pale white skin with the denoiser in path tracing). At Kabuki Market
 // (crowds), with time frozen: a screenshot with the game's NRD (off), the denoiser fed RELAX's PrePass output (fx, the
-// default) and fed the raw signal (fxraw), and one frame's render targets and RELAX textures (dump; RTBENCH_DUMP picks
+// default) and fed the raw signal (fxraw), with the RELAX outputs paired by binding slot (default), slots reversed
+// (fxslotrev) and object address (fxaddr), and one frame's render targets and RELAX textures (dump; RTBENCH_DUMP picks
 // the dispatches) to see how skin is stored in the G-buffer.
 // Run through tools/rtbench: RTBENCH_SCENARIO=skin [RTBENCH_DUMP=1624964913] tools/rtbench pt; compare each screenshot
 // with the off one (scripts/imgdiff.swift A B 0.08): fx should be within about 5 (mean error), like fxraw.
@@ -34,6 +35,7 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
             CpReport("{\"event\":\"BENCH_MODE\",\"mode\":\"" + mode + "\",\"settings\":\"skin\"}");
             return 20.0;
         case 1:
+            CpSkinMtl("framegen", "off"); // real frames only
             CpCheck("skin_teleport", CpSkinTeleport(player, "Kabuki Market"), "Kabuki Market");
             return 40.0;
         case 2:
@@ -50,12 +52,23 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
             return 5.0;
         case 5:
             CpShot("s1-" + mode + "-fx");
-            return 2.0;
+            CpSkinMtl("denoiseinputs", "x"); // the denoised scaler's color and guides (dsin-*)
+            return 3.0;
         case 6:
             CpSkinMtl("denoiseprepass", "off");
             return 5.0;
         case 7:
             CpShot("s1-" + mode + "-fxraw");
+            CpSkinMtl("denoiseprepass", "on");
+            CpSkinMtl("denoisepair", "slotrev");
+            return 5.0;
+        case 8:
+            CpShot("s1-" + mode + "-fxslotrev");
+            CpSkinMtl("denoisepair", "addr");
+            return 5.0;
+        case 9:
+            CpShot("s1-" + mode + "-fxaddr");
+            CpSkinMtl("denoisepair", "slot");
             return 2.0;
     }
     CpSkinMtl("denoise", "off");
