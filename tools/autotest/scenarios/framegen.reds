@@ -53,10 +53,13 @@ public func CpRunWorldStep(player: ref<PlayerPuppet>, step: Int32) -> Float {
         if step == 35 {
             CpShot("s0-" + mode + "-fgturn");
         }
+        if step == 80 {
+            CpFgMtl("fgseq", "17", 0); // 17 consecutive frames as raw dumps, for tests/fg_phase.mm (multi-frame research)
+        }
         return 0.0;
     }
     if step == 155 {
-        return 5.0;
+        return 60.0; // the dumps (PNGs, fgseq's raw frames) are written in the background
     }
     CpFgMtl("framegen", "off", 0);
     CpCheck("framegen_done", true, mode);
