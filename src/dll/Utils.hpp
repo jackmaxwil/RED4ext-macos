@@ -113,9 +113,44 @@ struct fmt::formatter<std::filesystem::path, Char> : formatter<basic_string_view
 
 #define SHOW_MESSAGE_BOX_FILE_LINE(type, msg, ...) Log::warn("Message at {}:{}", __FILE__, __LINE__)
 
+// The fatal errors can come before the logger exists: App reads the config file in its constructor, before LoggerSystem
+// creates the logger. A config without "version", for example, used to end the game with no word of the reason. The
+// formatted message now goes to stderr (the game's launch log) and to whatever logger exists, before the process exits.
 #define SHOW_MESSAGE_BOX_AND_EXIT_FILE_LINE(msg, ...)                                                                  \
-    Log::error("Fatal error at {}:{}", __FILE__, __LINE__);                                                            \
+    Utils::ReportFatal(__FILE__, __LINE__, msg, ##__VA_ARGS__);                                                        \
     Platform::TerminateProcess()
+
+#include "Log.hpp"
+
+#include <cstdio>
+
+namespace Utils
+{
+// Formats like Log::error (narrow or wide format string, wide arguments made narrow), so it takes what the call sites
+// pass to SHOW_MESSAGE_BOX_AND_EXIT_FILE_LINE.
+template<typename Char, typename... Args>
+void ReportFatal(const char* aFile, int aLine, const Char* aMsg, Args&&... aArgs)
+{
+    std::string text;
+    try
+    {
+        text = fmt::format(fmt::runtime(Log::Narrow(aMsg)), Log::detail::ConvertArg(std::forward<Args>(aArgs))...);
+    }
+    catch (const std::exception& e)
+    {
+        text = std::string("(the message could not be formatted: ") + e.what() + ")";
+    }
+
+    std::fprintf(stderr, "RED4ext: fatal error at %s:%d: %s\n", aFile, aLine, text.c_str());
+    std::fflush(stderr);
+
+    if (auto* logger = spdlog::default_logger_raw())
+    {
+        logger->error("Fatal error at {}:{}: {}", aFile, aLine, text);
+        logger->flush();
+    }
+}
+} // namespace Utils
 
 #else // Windows
 
