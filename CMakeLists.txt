@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.25) # upstream 3.26: nothing newer than 3.25 is used on macOS
 
 # ------------------------------------------------------------------------------
 # Project variables
