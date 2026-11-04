@@ -9,7 +9,9 @@
 #   2. The address DB's verified entries pass validate_addresses.py --verified-only.
 #   3. The layout dump is from the same binary, and each plugin's classes match it (sdk_layout_diff.py).
 #   4. Every address hash compiled into each plugin is verified (red4ext_plugin_check, the loader's own gate).
-# With no arguments it checks the TweakXL, ModMenu and ArchiveXL builds next to this repo.
+#   5. Each plugin's native script imports (SOURCE_DIR/../scripts) name types and property types the game has
+#      (script_type_check.py). The game refuses every script on one mismatch ("Failed to initialize scripts data!").
+# With no arguments it checks the TweakXL, ModMenu, ArchiveXL and Codeware builds next to this repo.
 # Exit 0 only if every check passes.
 #
 # CP_GATE_NO_GAME=1 skips check 1 only (CI runners have no game). Every other check still runs.
@@ -55,8 +57,12 @@ python3 "$SDK/scripts/validate_addresses.py" --verified-only --quiet || bad "val
 if [[ $# -eq 0 ]]; then
     set -- "$WS/cp2077-tweak-xl/build-dev/TweakXL.dylib:$WS/cp2077-tweak-xl/src" \
         "$WS/cp2077-modmenu/build-dev/libModMenu.dylib:$WS/cp2077-modmenu/src" \
-        "$WS/cp2077-archive-xl-macos/build-dev/ArchiveXL.dylib:$WS/cp2077-archive-xl-macos/src"
+        "$WS/cp2077-archive-xl-macos/build-dev/ArchiveXL.dylib:$WS/cp2077-archive-xl-macos/src" \
+        "$WS/cp2077-codeware/build-dev/Codeware.dylib:$WS/cp2077-codeware/src"
 fi
+# Plugins register script types of their own; their sources say which (Codeware's are used by other plugins' scripts).
+plugin_srcs=()
+for spec in "$@"; do plugin_srcs+=(--plugin-src "${spec#*:}"); done
 
 [[ -x "$CHECK" ]] || { bad "build red4ext_plugin_check first (cmake --build build-dev)"; exit 1; }
 for spec in "$@"; do
@@ -67,6 +73,10 @@ for spec in "$@"; do
     "$CHECK" "$DB" "$dylib" || bad "$(basename "$dylib") uses unverified addresses"
     python3 "$SDK/scripts/sdk_layout_diff.py" --plugin-sources "$src" | tail -1
     python3 "$SDK/scripts/sdk_layout_diff.py" --plugin-sources "$src" >/dev/null || bad "$(basename "$dylib") uses classes whose macOS layout differs from the SDK"
+    if [[ -d "$src/../scripts" ]]; then
+        python3 "$TOOLS_DIR/script_type_check.py" "$DUMP" "$src/../scripts" "${plugin_srcs[@]}" ||
+            bad "$(basename "$dylib") scripts import native types the game does not have"
+    fi
 done
 
 [[ $fail -eq 0 ]] && echo "PASS" || echo "FAILED"
