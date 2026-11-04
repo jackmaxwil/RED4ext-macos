@@ -353,6 +353,14 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
     if [[ -z "$START_ARGS" && $START_PRESSES -lt 40 && $now -ge $NEXT_START_PRESS && $((now - START)) -ge 8 ]] && ! in_world; then
         press_key 49; START_PRESSES=$((START_PRESSES + 1)); NEXT_START_PRESS=$((now + 5))
     fi
+    # Patch 2.5 shows a "CD PROJEKT RED Account" screen after the start screen that ignores Space; Esc is its
+    # "Skip for now". Press Esc every 10 s after the start screen until the save load is issued.
+    if [[ -z "$START_ARGS" && ${ESC_PRESSES:-0} -lt 12 && $now -ge ${NEXT_ESC_PRESS:-0} ]] &&
+        grep -q '"START_SCREEN"' "$LOGS_DIR/autotest.log" 2>/dev/null &&
+        ! grep -q '"LOAD_LAST_CHECKPOINT"' "$LOGS_DIR/autotest.log"; then
+        if [[ -n "${ESC_ARMED:-}" ]]; then press_key 53; ESC_PRESSES=$((${ESC_PRESSES:-0} + 1)); fi
+        ESC_ARMED=1; NEXT_ESC_PRESS=$((now + 10))
+    fi
     if [[ $((now - START)) -ge $TIMEOUT ]]; then break; fi
     # A scenario run reports its first event within a minute or two; a game that never gets there is stuck.
     if [[ "$SCENARIO" != boot && $((now - START)) -ge ${CP_BOOT_TIMEOUT:-180} && ! -f "$LOGS_DIR/autotest.log" ]]; then

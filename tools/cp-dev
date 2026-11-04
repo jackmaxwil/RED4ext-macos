@@ -4,7 +4,7 @@
 #   tools/cp-dev <scenario> [--plugins NAME,...] [cp-run options...]
 #   tools/cp-dev install [--plugins NAME,...]     # build, sign and install only; no game launch
 #
-# Builds RED4ext (Release), and with --plugins also ArchiveXL, TweakXL and ModMenu from
+# Builds RED4ext (Release), and with --plugins also ArchiveXL, TweakXL, ModMenu, Codeware and CyberEngineTweaks from
 # their sibling repos. Signs every dylib explicitly, installs into the game's red4ext/ directory with the
 # canonical address DB, then runs tools/cp-run <scenario>.
 set -euo pipefail
@@ -43,10 +43,16 @@ cp "$ROOT/deps/red4ext.sdk/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyber
 rm -f "$R4E_DIR/cyberpunk2077_addresses.json" "$R4E_DIR/bin/x64/cyberpunk2077_addresses.loader.json"
 
 # name:repo:built dylib:script dir (or -):data dir installed as the plugin's Data/ (or -)[:bundle dirs installed as Bundle/]
-PLUGIN_TABLE="ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib:scripts:-:bundle/source/resources+bundle/packed/archive/pc/mod TweakXL:cp2077-tweak-xl:TweakXL.dylib:scripts:data ModMenu:cp2077-modmenu:libModMenu.dylib:scripts/Scripts/ModMenu:-"
+PLUGIN_TABLE="ArchiveXL:cp2077-archive-xl-macos:ArchiveXL.dylib:scripts:-:bundle/source/resources+bundle/packed/archive/pc/mod TweakXL:cp2077-tweak-xl:TweakXL.dylib:scripts:data ModMenu:cp2077-modmenu:libModMenu.dylib:scripts/Scripts/ModMenu:- Codeware:cp2077-codeware:Codeware.dylib:scripts:data CyberEngineTweaks:cp2077-cet:CyberEngineTweaks.dylib:-:-"
 for entry in $PLUGIN_TABLE; do
     IFS=: read -r name repo lib scripts data bundle <<<"$entry"
     [[ ",$PLUGINS," == *",$name,"* ]] || continue
+    # The game refuses every script if one native import does not match its RTTI; catch that here, not in game.
+    if [[ "$scripts" != - ]]; then
+        python3 "$TOOLS_DIR/script_type_check.py" "$WS/RED4ext.SDK/data/rtti_layout_macos.json" "$WS/$repo/$scripts" \
+            --plugin-src "$WS/$repo/src" --plugin-src "$WS/cp2077-codeware/src" | tail -20 ||
+            { echo "[cp-dev] $name: script imports do not match the game (above)"; exit 1; }
+    fi
     echo "[cp-dev] building $name"
     build "$WS/$repo" "$WS/$repo/build-dev"
     mkdir -p "$R4E_DIR/plugins/$name"
@@ -82,6 +88,18 @@ for entry in $PLUGIN_TABLE; do
         done
     fi
 done
+# CET: its Lua support scripts go next to the dylib, plus the repo's test mods (each replaces only its own folder).
+if [[ ",$PLUGINS," == *",CyberEngineTweaks,"* ]]; then
+    CET_DIR="$R4E_DIR/plugins/CyberEngineTweaks"
+    rm -rf "$CET_DIR/scripts" && cp -R "$WS/cp2077-cet/scripts" "$CET_DIR/scripts"
+    mkdir -p "$CET_DIR/mods"
+    rm -f "$CET_DIR/mods/init.lua" # left by an earlier flat copy
+    for mod in "$WS/cp2077-cet/tests/macos/mods"/*; do
+        [[ -d "$mod" ]] || continue
+        # No trailing slash on the source: BSD cp would copy the folder's contents instead of the folder.
+        rm -rf "$CET_DIR/mods/$(basename "$mod")" && cp -R "$mod" "$CET_DIR/mods/"
+    done
+fi
 export CP_PLUGINS="${CP_PLUGINS:-$PLUGINS}"
 
 if [[ "$SCENARIO" == install ]]; then
