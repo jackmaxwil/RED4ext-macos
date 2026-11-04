@@ -356,9 +356,14 @@ kern_return_t ProtectExecutable(uintptr_t page)
     return mach_vm_protect(mach_task_self(), page, PageSize(), FALSE, prot);
 }
 
-bool AllocateWindow(uintptr_t target, uint8_t** out, uintptr_t limit, int maxSteps, bool adrp)
+bool AllocateWindow(uintptr_t target, uint8_t** out, uintptr_t limit, int maxSteps, bool adrp, uintptr_t size = 0)
 {
     const uintptr_t page = PageSize();
+    if (size == 0)
+    {
+        size = page;
+    }
+
     uintptr_t cursor = target > limit ? (target - limit) & ~(page - 1) : page;
     const uintptr_t hi = target + limit;
 
@@ -373,10 +378,10 @@ bool AllocateWindow(uintptr_t target, uint8_t** out, uintptr_t limit, int maxSte
                                                 reinterpret_cast<vm_region_info_t>(&info), &count, &object);
         const mach_vm_address_t gapEnd = kr == KERN_SUCCESS ? region : hi;
         const mach_vm_address_t capped = gapEnd > hi ? hi : gapEnd;
-        if (capped > cursor && capped - cursor >= page)
+        if (capped > cursor && capped - cursor >= size)
         {
             mach_vm_address_t hint = cursor;
-            if (mach_vm_allocate(mach_task_self(), &hint, page, VM_FLAGS_FIXED) == KERN_SUCCESS)
+            if (mach_vm_allocate(mach_task_self(), &hint, size, VM_FLAGS_FIXED) == KERN_SUCCESS)
             {
                 const auto got = static_cast<uintptr_t>(hint);
                 if (adrp ? InAdrpRange(target, got) : InBranchRange(target, got))
@@ -385,7 +390,7 @@ bool AllocateWindow(uintptr_t target, uint8_t** out, uintptr_t limit, int maxSte
                     return true;
                 }
 
-                mach_vm_deallocate(mach_task_self(), hint, page);
+                mach_vm_deallocate(mach_task_self(), hint, size);
             }
         }
 
@@ -412,8 +417,48 @@ bool AllocateNear(uintptr_t target, uint8_t** out)
     return AllocateWindow(target, out, limit, 8192, false);
 }
 
+// Stub pages for far sites, reserved when hooking starts. Plugins also attach hooks late, from game jobs (TweakXL's
+// stat hooks). By then the game has reserved most of the address space within ADRP reach of its code (about 130 GiB in
+// all), AllocateFar found no free page and the attach failed with kErrUnreachable; TweakXL then aborted the game.
+constexpr size_t kPoolPages = 512;
+uint8_t* g_pool = nullptr;
+bool g_poolUsed[kPoolPages]{};
+
+void ReservePool()
+{
+    if (g_pool != nullptr)
+    {
+        return;
+    }
+
+    // Within 3 GiB of the game's image, every target in its code (about 110 MiB) reaches every page by ADRP.
+    const auto image = reinterpret_cast<uintptr_t>(_dyld_get_image_header(0));
+    AllocateWindow(image, &g_pool, static_cast<uintptr_t>(3) << 30, 16384, true, kPoolPages * PageSize());
+}
+
+bool TakePoolPage(uintptr_t target, uint8_t** out)
+{
+    for (size_t i = 0; g_pool != nullptr && i < kPoolPages; ++i)
+    {
+        uint8_t* page = g_pool + i * PageSize();
+        if (!g_poolUsed[i] && InAdrpRange(target, reinterpret_cast<uintptr_t>(page)))
+        {
+            g_poolUsed[i] = true;
+            *out = page;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool AllocateFar(uintptr_t target, uint8_t** out)
 {
+    if (TakePoolPage(target, out))
+    {
+        return true;
+    }
+
     const uintptr_t page = PageSize();
     mach_vm_address_t hint = 0;
     if (mach_vm_allocate(mach_task_self(), &hint, page, VM_FLAGS_ANYWHERE) == KERN_SUCCESS)
@@ -602,7 +647,11 @@ void Unlink(Site* site, Node* node)
 
 void FreePage(uint8_t* page)
 {
-    if (page != nullptr)
+    if (g_pool != nullptr && page >= g_pool && page < g_pool + kPoolPages * PageSize())
+    {
+        g_poolUsed[(page - g_pool) / PageSize()] = false;
+    }
+    else if (page != nullptr)
     {
         mach_vm_deallocate(mach_task_self(), reinterpret_cast<mach_vm_address_t>(page), PageSize());
     }
@@ -1861,6 +1910,7 @@ RelocOut Relocate(uint32_t instr, uint64_t srcPc, uint64_t dstPc)
 void Begin()
 {
     std::lock_guard lock(g_mu);
+    ReservePool();
     g_open = true;
 }
 

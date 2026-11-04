@@ -38,23 +38,35 @@ std::vector<std::string> MissingLibraries(const std::filesystem::path& aDylib)
     std::vector<std::string> rpaths;
     std::vector<std::string> libraries;
     size_t offset = sizeof(mach_header_64);
+    // A load command's string lies inside the command, which lies inside the file. Malformed files stop the parse.
+    const auto readString = [&data](size_t aCommandOffset, uint32_t aCommandSize, uint32_t aStringOffset, size_t aMinOffset,
+                                    std::vector<std::string>& aOut)
+    {
+        if (aStringOffset < aMinOffset || aStringOffset >= aCommandSize)
+            return false;
+        const char* name = data.data() + aCommandOffset + aStringOffset;
+        aOut.emplace_back(name, strnlen(name, aCommandSize - aStringOffset));
+        return true;
+    };
     for (uint32_t i = 0; i < header.ncmds && offset + sizeof(load_command) <= data.size(); ++i)
     {
         load_command command;
         std::memcpy(&command, data.data() + offset, sizeof(command));
-        if (command.cmd == LC_LOAD_DYLIB && offset + sizeof(dylib_command) <= data.size())
+        if (command.cmdsize < sizeof(load_command) || command.cmdsize > data.size() - offset)
+            break;
+        if (command.cmd == LC_LOAD_DYLIB && command.cmdsize >= sizeof(dylib_command))
         {
             dylib_command dylib;
             std::memcpy(&dylib, data.data() + offset, sizeof(dylib));
-            const char* name = data.data() + offset + dylib.dylib.name.offset;
-            libraries.emplace_back(name, strnlen(name, command.cmdsize - dylib.dylib.name.offset));
+            if (!readString(offset, command.cmdsize, dylib.dylib.name.offset, sizeof(dylib_command), libraries))
+                break;
         }
-        else if (command.cmd == LC_RPATH && offset + sizeof(rpath_command) <= data.size())
+        else if (command.cmd == LC_RPATH && command.cmdsize >= sizeof(rpath_command))
         {
             rpath_command rpath;
             std::memcpy(&rpath, data.data() + offset, sizeof(rpath));
-            const char* name = data.data() + offset + rpath.path.offset;
-            rpaths.emplace_back(name, strnlen(name, command.cmdsize - rpath.path.offset));
+            if (!readString(offset, command.cmdsize, rpath.path.offset, sizeof(rpath_command), rpaths))
+                break;
         }
         offset += command.cmdsize;
     }

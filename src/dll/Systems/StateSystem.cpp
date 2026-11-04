@@ -69,6 +69,13 @@ void RegisterSelfCheckFunctions()
     func->SetReturnType("Int32");
     RED4ext::CRTTISystem::Get()->RegisterFunction(func);
 
+    // Only the unattended test driver needs it (tools/cp-run sets CP_AUTOTEST). Registered in a normal session, any
+    // redscript mod could append unbounded text to red4ext/logs/autotest.log.
+    if (!std::getenv("CP_AUTOTEST"))
+    {
+        return;
+    }
+
     // AddParam grows a game DynArray, which needs a verified DynArray_Realloc. Check the capability before using it.
     static RED4ext::UniversalRelocFunc<void (*)()> dynArrayRealloc(RED4ext::Detail::AddressHashes::DynArray_Realloc);
     if (!dynArrayRealloc.IsValid())

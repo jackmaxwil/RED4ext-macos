@@ -45,7 +45,11 @@ IGNORED=$(awk '/^ignored *=/{f=1} f{print} f&&/\]/{exit}' "$RED4EXT_DIR/config.i
 # RED4ext) would load scripts that declare natives of plugins that are not loaded and stop at script initialization.
 cleanup() {
     rm -rf "$STAGE"
-    [[ -x "$SCRIPT_DIR/engine/tools/scc" ]] && "$SCRIPT_DIR/engine/tools/scc" -compile "$SCRIPT_DIR/r6/scripts" >/dev/null 2>&1 || true
+    # Back to the game's own script bundle (scc's backup of it) for launches from Steam. Recompiling r6/scripts here
+    # fails, with an error dialog, as soon as a mod in it needs a plugin's scripts, and then leaves this same bundle.
+    if [[ -f "$SCRIPT_DIR/r6/cache/final.redscripts.bk" ]]; then
+        cp -f "$SCRIPT_DIR/r6/cache/final.redscripts.bk" "$SCRIPT_DIR/r6/cache/final.redscripts" || true
+    fi
 }
 trap cleanup EXIT
 rm -rf "$STAGE"
