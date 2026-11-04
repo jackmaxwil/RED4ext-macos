@@ -34,7 +34,9 @@ fi
 # Files unzipped with Finder carry the quarantine flag, and macOS then refuses to load the unsigned plugins.
 xattr -dr com.apple.quarantine "$GAME/red4ext" "$GAME/launch_red4ext.sh" "$GAME/r6/input" 2>/dev/null || true
 
-if [[ ! -f "$GAME/Cyberpunk2077.orig" ]]; then
+# Back up the stock binary, and again after a game patch: a backup of an older build would restore the wrong game.
+if [[ ! -f "$GAME/Cyberpunk2077.orig" || "$(macho_uuid "$GAME/Cyberpunk2077.orig")" != "$game_uuid" ]] \
+    && codesign -dv "$BIN" 2>&1 | grep -q "TeamIdentifier=PL47UP47QQ"; then
     cp -p "$BIN" "$GAME/Cyberpunk2077.orig"
     echo "Backed up the game binary to Cyberpunk2077.orig"
 fi
