@@ -51,6 +51,10 @@ else
 fi
 [[ "$dumpuuid" == "$dbuuid" ]] || bad "the layout dump is from another binary (run tools/cp-run rttidump)"
 
+# cp-dev installs RED4ext's pinned copy of the DB, so it must be the one checked here.
+cmp -s "$DB" "$ROOT/deps/red4ext.sdk/cyberpunk2077_addresses.json" ||
+    bad "deps/red4ext.sdk's address DB differs from RED4ext.SDK's (push the SDK, then tools/bump-sdk)"
+
 step "verified address entries"
 python3 "$SDK/scripts/validate_addresses.py" --verified-only --quiet || bad "validate_addresses.py"
 
@@ -65,12 +69,36 @@ plugin_srcs=()
 for spec in "$@"; do plugin_srcs+=(--plugin-src "${spec#*:}"); done
 
 [[ -x "$CHECK" ]] || { bad "build red4ext_plugin_check first (cmake --build build-dev)"; exit 1; }
+
+# red4ext_plugin_check only knows the hashes in the DB, so a hash the SDK or a plugin defines but the DB lacks would
+# pass and resolve to null in game. Check against a copy of the DB that lists every such hash as unverified.
+GATE_DB=$(mktemp -t cp-gate-db)
+trap 'rm -f "$GATE_DB"' EXIT
+python3 - "$DB" "$GATE_DB" "$SDK" "$@" <<'PY'
+import json, re, sys
+from pathlib import Path
+db_path, out_path, sdk, specs = sys.argv[1], sys.argv[2], Path(sys.argv[3]), sys.argv[4:]
+db = json.loads(Path(db_path).read_text())
+known = {int(e["hash"]) for e in db["Addresses"]}
+pattern = re.compile(r"constexpr (?:std::)?uint32_t (\w+) = (0x[0-9A-Fa-f]+|\d+);")
+# Address hashes live in the SDK's Detail/AddressHashes.hpp and in each plugin's Red/Addresses/*.hpp.
+files = [sdk / "include/RED4ext/Detail/AddressHashes.hpp"]
+files += [f for spec in specs for f in Path(spec.split(":", 1)[1]).glob("Red/Addresses/*.hpp")]
+missing = {}
+for f in files:
+    for name, value in pattern.findall(f.read_text(errors="ignore")):
+        if int(value, 0) not in known:
+            missing.setdefault(int(value, 0), name)
+db["Addresses"] += [{"hash": str(h), "offset": "1:0x0", "verified": False} for h in sorted(missing)]
+Path(out_path).write_text(json.dumps(db))
+print(f"absent from the DB, treated as unverified: {', '.join(sorted(missing.values())) or 'none'}")
+PY
 for spec in "$@"; do
     dylib=${spec%%:*}
     src=${spec#*:}
     step "$(basename "$dylib")"
     [[ -f "$dylib" ]] || { bad "$dylib not built"; continue; }
-    "$CHECK" "$DB" "$dylib" || bad "$(basename "$dylib") uses unverified addresses"
+    "$CHECK" "$GATE_DB" "$dylib" || bad "$(basename "$dylib") uses unverified addresses"
     python3 "$SDK/scripts/sdk_layout_diff.py" --plugin-sources "$src" | tail -1
     python3 "$SDK/scripts/sdk_layout_diff.py" --plugin-sources "$src" >/dev/null || bad "$(basename "$dylib") uses classes whose macOS layout differs from the SDK"
     if [[ -d "$src/../scripts" ]]; then
